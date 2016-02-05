@@ -1,4 +1,6 @@
 ######################################################
+# $Id: 10_IT.pm 1001 2016-01-10 17:00:00Z  test $
+#
 # InterTechno Switch Manager as FHM-Module
 #
 # (c) Olaf Droegehorn / DHS-Computertechnik GmbH
@@ -462,7 +464,7 @@ IT_Define($$)
     #return "FALSE";
   } elsif (length($a[2]) == 26) {
     # Is Protocol V3
-    return "Define $a[0]: wrong IT-Code format: specify a 26 digits 0/1 "
+    return "Define $a[0]: wrong ITv3-Code format: specify a 26 digits 0/1 "
   		if( ($a[2] !~ m/^[0-1]{26}$/i) );
     return "Define $a[0]: wrong Bit Group format: specify a 1 digits 0/1 "
   		if( ($a[3] !~ m/^[0-1]{1}$/i) );
@@ -570,6 +572,7 @@ sub
 IT_Parse($$)
 {
   my ($hash, $msg) = @_;
+  my $ioname = $hash->{NAME};
   my $housecode;
   my $dimCode;
   my $unitCode;
@@ -579,14 +582,14 @@ IT_Parse($$)
   my $newstate;
   my @list;
   if ((substr($msg, 0, 1)) ne 'i') {
-    Log3 undef,4,"message not supported by IT \"$msg\"!";
+    Log3 $hash,4,"$ioname IT: message not supported by IT \"$msg\"!";
     return undef;
   }
   if (length($msg) != 7 && length($msg) != 12 && length($msg) != 17 && length($msg) != 19 && length($msg) != 20) {
-    Log3 undef,3,"message \"$msg\" (" . length($msg) . ") too short!";
+    Log3 $hash,3,"$ioname IT: message \"$msg\" (" . length($msg) . ") too short!";
     return undef;
   }
-  Log3 undef,4,"message \"$msg\" (" . length($msg) . ")";
+  Log3 $hash,4,"$ioname IT: message \"$msg\" (" . length($msg) . ")";
   my $bin = undef;
   my $isDimMode = 0;
   if (length($msg) == 17) { # IT V3
@@ -601,6 +604,7 @@ IT_Parse($$)
           $bin2 = '0'.$bin2;   
         }
         $bin = $bin1 . $bin2;
+        Log3 $hash,4,"$ioname ITv3: bin message \"$bin\" (" . length($bin) . ")";
   } elsif (length($msg) == 19 ) { # IT V3 Dimm
         my $bin1=sprintf("%024b",hex(substr($msg,1,length($msg)-1-8-8)));
         while (length($bin1) < 32) {
@@ -618,6 +622,7 @@ IT_Parse($$)
           $bin3 = '0'.$bin3;   
         }
         $bin = substr($bin1 . $bin2 . $bin3,24,length($bin1 . $bin2 . $bin3)-1);
+        Log3 $hash,4,"$ioname ITv3dimm: bin message \"$bin\" (" . length($bin) . ")";
   } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
         #Log3 undef,3,"HEX Part1: " . substr($msg,2,8);
         my $bin1=sprintf("%024b",hex(substr($msg,2,8)));
@@ -659,7 +664,7 @@ IT_Parse($$)
         if (substr($bin,0,2) != "10") {
           $msgcode=$msgcode.$bintotristate{substr($bin,0,2)};
         } else {
-          Log3 undef,4,"unknown tristate in \"$bin\"";
+          Log3 $hash,4,"$ioname IT:unknown tristate in \"$bin\"";
           return "unknown tristate in \"$bin\""
         }
       } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
@@ -669,8 +674,9 @@ IT_Parse($$)
       }
       $bin=substr($bin,2,length($bin)-2);
     }
-  }   
-
+  }
+  
+  Log3 $hash,4,"$ioname IT: msgcode \"$msgcode\" (" . length($msgcode) . ")";
   
   if (length($msg) == 7) {
     $housecode=substr($msgcode,0,length($msgcode)-2);
@@ -692,16 +698,16 @@ IT_Parse($$)
     $housecode=substr($msgcode,0,6).substr($msgcode,26,2);
     $onoffcode=0;
   } else {
-    Log3 undef,4,"Wrong IT message received: $msgcode";
+    Log3 $hash,4,"$ioname IT: Wrong IT message received: $msgcode";
     return "Wrong IT message received: $msgcode";
   }
   
   if(!defined($modules{IT}{defptr}{lc("$housecode")})) {
     if(length($msg) == 7) {
-      Log3 undef,4,"$housecode not defined (Switch code: $onoffcode)";
+      Log3 $hash,4,"$ioname IT: $housecode not defined (Switch code: $onoffcode)";
       #return "$housecode not defined (Switch code: $onoffcode)!";
       if ($onoffcode eq "F0") { # on code IT
-        Log3 undef,4,"For autocreate please use the on button.";
+        Log3 $hash,4,"$ioname IT: For autocreate please use the on button.";
         return "$housecode not defined (Switch code: $onoffcode)! \n For autocreate please use the on button.";
       } 
       my $tmpOffCode = "F0";
@@ -716,14 +722,14 @@ IT_Parse($$)
         # Group Code found
         $isGroupCode = '1';
       }
-      Log3 undef,2,"$housecode not defined (Address: ".substr($msgcode,0,46)." Unit: $unitCode Switch code: $onoffcode GroupCode: $isGroupCode)";
+      Log3 $hash,2,"$ioname IT: $housecode not defined (Address: ".substr($msgcode,0,46)." Unit: $unitCode Switch code: $onoffcode GroupCode: $isGroupCode)";
       #return "$housecode not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)!";
       return "UNDEFINED IT_$housecode IT " . substr($msgcode,0,46) . " $isGroupCode $unitCode" if(!$def);
     } elsif (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HE800
-      Log3 undef,2,"$housecode not defined (HE800)";
+      Log3 $hash,2,"$ioname IT: $housecode not defined (HE800)";
       return "UNDEFINED IT_$housecode IT " . "$housecode HE800 $msgcode" if(!$def);
     } else {
-      Log3 undef,2,"$housecode not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)";
+      Log3 $hash,2,"$ioname IT: $housecode not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)";
       #return "$housecode not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)!";
       return "UNDEFINED IT_$housecode IT " . substr($msgcode,0,26) . " $groupBit $unitCode" if(!$def);
     }
@@ -800,10 +806,10 @@ IT_Parse($$)
         $newstate="off";
       } 
     } else {
-      Log3 $def->{$name}{NAME},3,"Code $onoffcode not supported by $def->{$name}{NAME}.";
+      Log3 $def->{$name}{NAME},3,"$ioname IT: Code $onoffcode not supported by $def->{$name}{NAME}.";
       next;
     }
-    Log3 $def->{$name}{NAME},3,"$def->{$name}{NAME} ".$def->{$name}->{STATE}."->".$newstate;
+    Log3 $def->{$name}{NAME},3,"$ioname IT: $def->{$name}{NAME} ".$def->{$name}->{STATE}."->".$newstate;
     push(@list,$def->{$name}{NAME});
     readingsSingleUpdate($def->{$name},"state",$newstate,1);
     
