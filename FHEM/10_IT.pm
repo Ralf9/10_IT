@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1001 2016-01-10 17:00:00Z  test $
+# $Id: 10_IT.pm 1002 2016-03-15 20:00:00Z $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -245,11 +245,11 @@ IT_Set($@)
       my @itvalues = split(' ', $v);
       if ($itvalues[1] eq "dimup") {
         $a[0] = "dim100%";
-        $hash->{READINGS}{dim}{VAL} = 100;
+        readingsSingleUpdate($hash, "dim", 100, 1);
         $message = "is".uc(substr($hash->{XMIT},0,length($hash->{XMIT})-5).$hash->{READINGS}{group}{VAL}."D".$hash->{READINGS}{unit}{VAL}."1111");
       } elsif ($itvalues[1] eq "dimdown") {
         $a[0] = "dim06%";
-        $hash->{READINGS}{dim}{VAL} = 6;
+        readingsSingleUpdate($hash, "dim", 6, 1);
         $message = "is".uc(substr($hash->{XMIT},0,length($hash->{XMIT})-5).$hash->{READINGS}{group}{VAL}."D".$hash->{READINGS}{unit}{VAL}."0000");
       } elsif ($itvalues[1] =~ /dim/) {
         my $dperc = substr($itvalues[1], 3, -1);
@@ -259,7 +259,7 @@ IT_Set($@)
           # suffix 0
           $bin = '0'.$bin;   
         }
-        $hash->{READINGS}{dim}{VAL} = $dperc;
+        readingsSingleUpdate($hash, "dim", $dperc, 1);
         if ($dperc == 0) {  
           $message = "is".uc(substr($hash->{XMIT},0,length($hash->{XMIT})-5).$hash->{READINGS}{group}{VAL}."0".$hash->{READINGS}{unit}{VAL});
         } else {
@@ -356,9 +356,10 @@ IT_Set($@)
   
   foreach my $n (keys %{ $modules{IT}{defptr}{$code} }) { 
     my $lh = $modules{IT}{defptr}{$code}{$n};
+    
     $lh->{CHANGED}[0] = $v;
     $lh->{STATE} = $v;
-    $lh->{READINGS}{state}{TIME} = $tn;
+    #$lh->{READINGS}{state}{TIME} = $tn;
     if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
       if ($v eq "learn_on_codes") {
         $lh->{"learn"}  = 'ON';
@@ -378,30 +379,48 @@ IT_Set($@)
     if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         if ($v eq "on") {
-          $hash->{READINGS}{dim}{VAL} = "100";
-          $lh->{READINGS}{state}{VAL} = "on";
+          readingsSingleUpdate($lh, "dim", "100", 1);
+          IT_DoReadingUpdate($lh, "state", "on");
         } elsif ($v eq "off") {
-          $hash->{READINGS}{dim}{VAL} = "0";
-          $lh->{READINGS}{state}{VAL} = "off";
+          readingsSingleUpdate($lh, "dim", "0", 1);
+          IT_DoReadingUpdate($lh, "state", "off");
         } else {
           if ($v eq "dim100%") {
             $lh->{STATE} = "on";
-            $lh->{READINGS}{state}{VAL} = "on";
+            readingsSingleUpdate($lh, "state", "on", 1);
           } elsif ($v eq "dim00%") {
             $lh->{STATE} = "off";
-            $lh->{READINGS}{state}{VAL} = "off";
+            readingsSingleUpdate($lh, "state", "off", 1);
           } else {
             $lh->{STATE} = $v;
-            $lh->{READINGS}{state}{VAL} = $v;
+            IT_DoReadingUpdate($lh, "state", $v);
           }
         }
       }
     } else {
-      $lh->{READINGS}{state}{VAL} = $v;
+      IT_DoReadingUpdate($lh, "state", $v);
     }
   }
   return $ret;
 }
+
+sub
+IT_DoReadingUpdate($$$)
+{
+  my ($hash, $name, $value) = @_;
+  
+  InternalTimer(gettimeofday(),'IT_ReadingUpdate',[$hash,$name, $value],0);
+}
+
+sub
+IT_ReadingUpdate($)
+{
+  my ($hash) = @_;
+  my ($lh, $name, $value) = @$hash;
+  
+  readingsSingleUpdate($lh, 'state', $value, 0);
+}
+
 
 #############################
 sub
@@ -514,6 +533,7 @@ IT_Define($$)
     $oncode = $a[3];
     $offcode = $a[4];
     $hash->{READINGS}{protocol}{VAL}  = 'V1';
+    
   }
 
 
