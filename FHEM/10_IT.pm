@@ -360,13 +360,14 @@ IT_Set($@)
     $lh->{CHANGED}[0] = $v;
     $lh->{STATE} = $v;
     #$lh->{READINGS}{state}{TIME} = $tn;
+    readingsBeginUpdate($lh);
     if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
       if ($v eq "learn_on_codes") {
         $lh->{"learn"}  = 'ON';
-        readingsSingleUpdate($lh, "init_count", 0, 1);
+        readingsBulkUpdate($lh, "init_count", 0);
       } elsif ($v eq "learn_off_codes") {
         $lh->{"learn"}  = 'OFF';
-        readingsSingleUpdate($lh, "init_count", 0, 1);
+        readingsBulkUpdate($lh, "init_count", 0);
       } else {
         my $count = $hash->{"count"};
         $count = $count + 1;
@@ -379,46 +380,30 @@ IT_Set($@)
     if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         if ($v eq "on") {
-          readingsSingleUpdate($lh, "dim", "100", 1);
-          IT_DoReadingUpdate($lh, "state", "on");
+          readingsBulkUpdate($hash, "dim", "100");
+          readingsBulkUpdate($lh, "state", "on");
         } elsif ($v eq "off") {
-          readingsSingleUpdate($lh, "dim", "0", 1);
-          IT_DoReadingUpdate($lh, "state", "off");
+          readingsBulkUpdate($hash, "dim", "0");
+          readingsBulkUpdate($lh, "state", "off");
         } else {
           if ($v eq "dim100%") {
             $lh->{STATE} = "on";
-            readingsSingleUpdate($lh, "state", "on", 1);
+            readingsBulkUpdate($lh, "state", "on");
           } elsif ($v eq "dim00%") {
             $lh->{STATE} = "off";
-            readingsSingleUpdate($lh, "state", "off", 1);
+            readingsBulkUpdate($lh, "state", "off");
           } else {
             $lh->{STATE} = $v;
-            IT_DoReadingUpdate($lh, "state", $v);
+            readingsBulkUpdate($lh, "state", $v);
           }
         }
       }
     } else {
-      IT_DoReadingUpdate($lh, "state", $v);
+      readingsBulkUpdate($lh, "state", $v);
     }
+    readingsEndUpdate($lh,1);
   }
   return $ret;
-}
-
-sub
-IT_DoReadingUpdate($$$)
-{
-  my ($hash, $name, $value) = @_;
-  
-  InternalTimer(gettimeofday(),'IT_ReadingUpdate',[$hash,$name, $value],0);
-}
-
-sub
-IT_ReadingUpdate($)
-{
-  my ($hash) = @_;
-  my ($lh, $name, $value) = @$hash;
-  
-  readingsSingleUpdate($lh, 'state', $value, 0);
 }
 
 
