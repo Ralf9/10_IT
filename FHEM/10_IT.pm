@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1002 2016-03-15 20:00:00Z $
+# $Id: 10_IT.pm 1002 2016-03-20 20:00:00Z $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -87,7 +87,6 @@ IT_Initialize($)
   $hash->{ParseFn}   = "IT_Parse";
   $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,HE800 unit group dummy:1,0 " .
                        "$readingFnAttributes " .
-                       "loglevel:0,1,2,3,4,5,6 " .
                        "model:".join(",", sort keys %models);
 
   $hash->{AutoCreate}=
@@ -181,7 +180,7 @@ IT_Set($@)
               }
             }
           }
-           Log GetLogLevel($name,2), "NOT Implemented now!";
+           Log3 $hash ,2, "$name: NOT Implemented now!";
            return "Specified timeout too large, max is 15360" if(length($c) == 2);
         }
       }
@@ -204,40 +203,43 @@ IT_Set($@)
 
   my $io = $hash->{IODev};
 
+  if ($io->{TYPE} ne "SIGNALduino") {
+	# das IODev ist kein SIGNALduino
+
 	## Do we need to change RFMode to SlowRF??
-  if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
-  	if ($attr{$name}{"switch_rfmode"} eq "1") {			# do we need to change RFMode of IODev
-  		  my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "SlowRF"));
- 	 	}	
+	if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
+		if ($attr{$name}{"switch_rfmode"} eq "1") {				# do we need to change RFMode of IODev
+			my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "SlowRF"));
+		}
 	}
-    ## Do we need to change ITClock ??	}
-    if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) 
-    {
-        #$message = "isc".$attr{$name}{"ITclock"};
-        #CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-        $message = $attr{$name}{"ITclock"};
-        CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", $message));
-		Log GetLogLevel($name,4), "IT set ITclock: $message for $io->{NAME}";
-    }
-
-    ## Do we need to change ITrepetition ??	
-    if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
-  	    $message = "isr".$attr{$name}{"ITrepetition"};
-        CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		Log GetLogLevel($name,4), "IT set ITrepetition: $message for $io->{NAME}";
+	## Do we need to change ITClock ??	}
+	if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) {
+		#$message = "isc".$attr{$name}{"ITclock"};
+		#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
+		$message = $attr{$name}{"ITclock"};
+		CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", $message));
+		Log3 $hash, 2, "IT set ITclock: $message for $io->{NAME}";
 	}
 
-  ## Do we need to change ITfrequency ??	
-  if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
-    my $f = $attr{$name}{"ITfrequency"}/26*65536;
-    my $f2 = sprintf("%02x", $f / 65536);
-    my $f1 = sprintf("%02x", int($f % 65536) / 256);
-    my $f0 = sprintf("%02x", $f % 256);
-    
-    my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
-    Log GetLogLevel($name,4), "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
-    CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if$f2$f1$f0"));
+	## Do we need to change ITrepetition ??	
+	if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
+		$message = "isr".$attr{$name}{"ITrepetition"};
+		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
+		Log3 $hash,4, "IT set ITrepetition: $message for $io->{NAME}";
 	}
+
+	## Do we need to change ITfrequency ??	
+	if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
+		my $f = $attr{$name}{"ITfrequency"}/26*65536;
+		my $f2 = sprintf("%02x", $f / 65536);
+		my $f1 = sprintf("%02x", int($f % 65536) / 256);
+		my $f0 = sprintf("%02x", $f % 256);
+
+		my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
+		Log3 $hash, 2, "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
+		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if$f2$f1$f0"));
+	}
+  }
 	
   my $v = $name ." ". join(" ", @a);
   if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
@@ -299,54 +301,74 @@ IT_Set($@)
     } elsif ($cVal eq "on") {
       my $sendVal = $hash->{READINGS}{"on_" . $count}{VAL};
       $message = "ish".uc($sendVal);
-      
+    
     } else {
       my $sendVal = $hash->{READINGS}{"off_" . $count}{VAL};
       $message = "ish".uc($sendVal);
     }
   } else {
     $message = "is".uc($hash->{XMIT}.$hash->{$c});
-	}
-
-	## Log that we are going to switch InterTechno
-  Log GetLogLevel($name,2), "IT set $v";
+  }
+  
+  
+  ## Log that we are going to switch InterTechno
+  Log3 $hash, 3, "$name: IT set $v";
   (undef, $v) = split(" ", $v, 2);	# Not interested in the name...
 
+  if ($io->{TYPE} ne "SIGNALduino") {
+	# das IODev ist kein SIGNALduino
 	## Send Message to IODev and wait for correct answer
-  my $msg = CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-  if ($msg =~ m/raw => $message/) {
-        Log 4, "Answer from $io->{NAME}: $msg";
-  } else {
-        Log 2, "IT IODev device didn't answer is command correctly: $msg";
-  }
-
-  ## Do we need to change ITrepetition back??	
-  if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
-  	$message = "isr".$it_defrepetition;
-                CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		Log GetLogLevel($name,4), "IT set ITrepetition back: $message for $io->{NAME}";
+	my $msg = CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
+	#Log3 $hash,4,"IT_Set: GetFn(raw): message = $message Antwort = $msg";
+	if ($msg =~ m/raw => $message/) {
+		Log 4, "ITSet: Answer from $io->{NAME}: $msg";
+	} else {
+		Log 2, "IT IODev device didn't answer is command correctly: $msg";
+	}
+	## Do we need to change ITrepetition back??	
+        if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
+        	$message = "isr".$it_defrepetition;
+        	CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
+		Log3 $hash, 2, "IT set ITrepetition back: $message for $io->{NAME}";
 	}
 
-    ## Do we need to change ITfrequency back??	
-    if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
-        Log GetLogLevel($name,4), "Setting ITfrequency back to 433.92 MHz";
-        CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if0"));
-    }
+        ## Do we need to change ITfrequency back??	
+        if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
+        	Log3 $hash,4 ,"Setting ITfrequency back to 433.92 MHz";
+        	CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if0"));
+        }
 	
 	## Do we need to change ITClock back??	
-    if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) 
-    {
-        Log GetLogLevel($name,4), "Setting ITClock back to 420";
-        #CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "sic250"));
-        CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", "420"));
-    }
-
+	if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) 
+        {
+        	Log3 $hash, 2, "Setting ITClock back to 420";
+        	#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "sic250"));
+        	CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", "420"));
+        }
+	
 	## Do we need to change RFMode back to HomeMatic??
-  if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
-  	if ($attr{$name}{"switch_rfmode"} eq "1") {			# do we need to change RFMode of IODev
-  		  my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "HomeMatic"));
- 	 	}	
+	if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
+		if ($attr{$name}{"switch_rfmode"} eq "1") {			# do we need to change RFMode of IODev
+			my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "HomeMatic"));
+	 	}
 	}
+	
+  } else {  	# SIGNALduino
+	
+	my $SignalRepeats = AttrVal($name,'ITrepetition', '6');
+	my $ITClock = AttrVal($name,'ITclock', undef);
+	if (defined($ITClock)) {
+		$ITClock = '#C' . $ITClock;
+	} else {
+		$ITClock = '';
+	}
+	if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
+		IOWrite($hash, 'sendMsg', 'P17#' . substr($message,2) . '#R' . $SignalRepeats . $ITClock);
+	} else {
+		# IT V1
+		IOWrite($hash, 'sendMsg', 'P3#' . substr($message,2) . '#R' . $SignalRepeats . $ITClock);
+	}
+  }
 
 
   ##########################
@@ -360,6 +382,7 @@ IT_Set($@)
     $lh->{CHANGED}[0] = $v;
     $lh->{STATE} = $v;
     #$lh->{READINGS}{state}{TIME} = $tn;
+    #Log3 $hash, 2, "ITSet readingsUpdate: $n";
     readingsBeginUpdate($lh);
     if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
       if ($v eq "learn_on_codes") {
