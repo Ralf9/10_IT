@@ -81,7 +81,7 @@ IT_Initialize($)
 
   $hash->{Match}     = "^i......";
   $hash->{SetFn}     = "IT_Set";
-  $hash->{StateFn}   = "IT_SetState";
+  #$hash->{StateFn}   = "IT_SetState";
   $hash->{DefFn}     = "IT_Define";
   $hash->{UndefFn}   = "IT_Undef";
   $hash->{ParseFn}   = "IT_Parse";
@@ -109,7 +109,7 @@ IT_SetState($$$$)
 sub
 IT_Do_On_Till($@)
 {
-  my ($hash, @a) = @_;
+  my ($hash, $name, @a) = @_;
   return "Timespec (HH:MM[:SS]) needed for the on-till command" if(@a != 3);
 
   my ($err, $hr, $min, $sec, $fn) = GetTimeSpec($a[2]);
@@ -123,11 +123,11 @@ IT_Do_On_Till($@)
     return "";
   }
 
-  my @b = ($a[0], "on");
-  IT_Set($hash, @b);
+  my @b = ("on");
+  IT_Set($hash, $name, @b);
   my $tname = $hash->{NAME} . "_till";
   CommandDelete(undef, $tname) if($defs{$tname});
-  CommandDefine(undef, "$tname at $hms_till set $a[0] off");
+  CommandDefine(undef, "$tname at $hms_till set $name off");
 
 }
 
@@ -193,15 +193,69 @@ IT_Set($@)
     $list .= " learn_on_codes:noArg learn_off_codes:noArg";
   }
 
-  return SetExtensions($hash, $list, $name, @a) if( $a[0] eq "?" );
-  return SetExtensions($hash, $list, $name, @a) if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
-
+  #return SetExtensions($hash, $list, $name, @a) if( $a[0] eq "?" );
+  #return SetExtensions($hash, $list, $name, @a) if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
+  return "Unknown argument $a[0], choose one of $list" if( $a[0] eq "?" );
+  return "Unknown argument $a[0], choose one of $list" if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
   
 
-  return IT_Do_On_Till($hash, @a) if($a[0] eq "on-till");
+  return IT_Do_On_Till($hash, $name, @a) if($a[0] eq "on-till");
   return "Bad time spec" if($na == 2 && $a[1] !~ m/^\d*\.?\d+$/);
 
+
   my $io = $hash->{IODev};
+  my $v = $name ." ". join(" ", @a);
+  ## Log that we are going to switch InterTechno
+  Log3 $hash, 2, "$io->{NAME} IT_set: $v";
+  my (undef, $cmd) = split(" ", $v, 2);	# Not interested in the name...
+  
+  # Look for all devices with the same code, and set state, timestamp
+  my $code = "$hash->{XMIT}";
+  foreach my $n (keys %{ $modules{IT}{defptr}{$code} }) {
+    my $lh = $modules{IT}{defptr}{$code}{$n};
+    
+    $lh->{STATE} = $cmd;
+    if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
+      if ($cmd eq "learn_on_codes") {
+        $lh->{"learn"}  = 'ON';
+        readingsSingleUpdate($lh, "init_count", 0, 1);
+      } elsif ($cmd eq "learn_off_codes") {
+        $lh->{"learn"}  = 'OFF';
+        readingsSingleUpdate($lh, "init_count", 0, 1);
+      } else {
+        my $count = $hash->{"count"};
+        $count = $count + 1;
+        if ($count > 3) {
+          $count = 0;
+        }
+        $hash->{"count"}  = $count;
+      }
+    }
+    if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
+      if( AttrVal($name, "model", "") eq "itdimmer" ) {
+        if ($cmd eq "on") {
+          readingsSingleUpdate($lh, "dim", "100",1);
+          readingsSingleUpdate($lh, "state", "on",1);
+        } elsif ($cmd eq "off") {
+          readingsSingleUpdate($lh, "dim", "0",1);
+          readingsSingleUpdate($lh, "state", "off",1);
+        } else {
+          if ($cmd eq "dim100%") {
+            $lh->{STATE} = "on";
+            readingsSingleUpdate($lh, "state", "on",1);
+          } elsif ($cmd eq "dim00%") {
+            $lh->{STATE} = "off";
+            readingsSingleUpdate($lh, "state", "off",1);
+          } else {
+            readingsSingleUpdate($lh, "state", $cmd,1);
+          }
+        }
+      }
+    } else {
+      readingsSingleUpdate($lh, "state", $cmd,1);
+    }
+  }
+
 
   if ($io->{TYPE} ne "SIGNALduino") {
 	# das IODev ist kein SIGNALduino
@@ -241,7 +295,6 @@ IT_Set($@)
 	}
   }
 	
-  my $v = $name ." ". join(" ", @a);
   if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
     if( AttrVal($name, "model", "") eq "itdimmer" ) {
       my @itvalues = split(' ', $v);
@@ -267,7 +320,7 @@ IT_Set($@)
         } else {
           $message = "is".uc(substr($hash->{XMIT},0,length($hash->{XMIT})-5).$hash->{READINGS}{group}{VAL}."D".$hash->{READINGS}{unit}{VAL}.$bin);
         }
-      
+	
       } else {
         my $stateVal;
         if ($a[0] eq "off") { 
@@ -309,11 +362,7 @@ IT_Set($@)
   } else {
     $message = "is".uc($hash->{XMIT}.$hash->{$c});
   }
-  
-  
-  ## Log that we are going to switch InterTechno
-  Log3 $hash, 3, "$name: IT set $v";
-  (undef, $v) = split(" ", $v, 2);	# Not interested in the name...
+
 
   if ($io->{TYPE} ne "SIGNALduino") {
 	# das IODev ist kein SIGNALduino
@@ -368,63 +417,6 @@ IT_Set($@)
 		# IT V1
 		IOWrite($hash, 'sendMsg', 'P3#' . substr($message,2) . '#R' . $SignalRepeats . $ITClock);
 	}
-  }
-
-
-  ##########################
-  # Look for all devices with the same code, and set state, timestamp
-  my $code = "$hash->{XMIT}";
-  my $tn = TimeNow();
-  
-  foreach my $n (keys %{ $modules{IT}{defptr}{$code} }) { 
-    my $lh = $modules{IT}{defptr}{$code}{$n};
-    
-    $lh->{CHANGED}[0] = $v;
-    $lh->{STATE} = $v;
-    #$lh->{READINGS}{state}{TIME} = $tn;
-    #Log3 $hash, 2, "ITSet readingsUpdate: $n";
-    readingsBeginUpdate($lh);
-    if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
-      if ($v eq "learn_on_codes") {
-        $lh->{"learn"}  = 'ON';
-        readingsBulkUpdate($lh, "init_count", 0);
-      } elsif ($v eq "learn_off_codes") {
-        $lh->{"learn"}  = 'OFF';
-        readingsBulkUpdate($lh, "init_count", 0);
-      } else {
-        my $count = $hash->{"count"};
-        $count = $count + 1;
-        if ($count > 3) {
-          $count = 0;
-        }
-        $hash->{"count"}  = $count;
-      }
-    }
-    if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
-      if( AttrVal($name, "model", "") eq "itdimmer" ) {
-        if ($v eq "on") {
-          readingsBulkUpdate($hash, "dim", "100");
-          readingsBulkUpdate($lh, "state", "on");
-        } elsif ($v eq "off") {
-          readingsBulkUpdate($hash, "dim", "0");
-          readingsBulkUpdate($lh, "state", "off");
-        } else {
-          if ($v eq "dim100%") {
-            $lh->{STATE} = "on";
-            readingsBulkUpdate($lh, "state", "on");
-          } elsif ($v eq "dim00%") {
-            $lh->{STATE} = "off";
-            readingsBulkUpdate($lh, "state", "off");
-          } else {
-            $lh->{STATE} = $v;
-            readingsBulkUpdate($lh, "state", $v);
-          }
-        }
-      }
-    } else {
-      readingsBulkUpdate($lh, "state", $v);
-    }
-    readingsEndUpdate($lh,1);
   }
   return $ret;
 }
