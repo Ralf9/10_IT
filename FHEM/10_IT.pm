@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1002 2016-03-20 20:00:00Z $
+# $Id: 10_IT.pm 1003 2016-04-02 10:00:00Z dev $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -66,6 +66,10 @@ my %bintotristateHE=(
   "11" => "2",
   "00" => "D"
 );
+my %ev_action = (
+  "on"  => "0011",
+  "off" => "0000"
+);
 
 sub bin2dec {
 	unpack("N", pack("B32", substr("0" x 32 . shift, -32)));
@@ -90,7 +94,7 @@ IT_Initialize($)
                        "model:".join(",", sort keys %models);
 
   $hash->{AutoCreate}=
-        { "IT.*" => { GPLOT => "", FILTER => "%NAME" } };
+        { "IT.*" => { GPLOT => "", FILTER => "%NAME",  autocreateThreshold => "2:30"} };
 }
 
 #####################################
@@ -186,6 +190,9 @@ IT_Set($@)
       }
       $list = (join(" ", sort keys %it_c2b) . " dim:slider,0,6.25,100")
         if( AttrVal($name, "model", "") eq "itdimmer" );
+  } elsif ($hash->{READINGS}{protocol}{VAL} eq "EV1527") {                 # EV1527
+    #Log3 $hash, 2, "Set ignored for EV1527 (1527X) devices";
+    return "";
   } else {
     $list .= "dimUp:noArg dimDown:noArg on-till" if( AttrVal($name, "model", "") eq "itdimmer" );
   }
@@ -193,10 +200,10 @@ IT_Set($@)
     $list .= " learn_on_codes:noArg learn_off_codes:noArg";
   }
 
-  #return SetExtensions($hash, $list, $name, @a) if( $a[0] eq "?" );
-  #return SetExtensions($hash, $list, $name, @a) if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
-  return "Unknown argument $a[0], choose one of $list" if( $a[0] eq "?" );
-  return "Unknown argument $a[0], choose one of $list" if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
+  return SetExtensions($hash, $list, $name, @a) if( $a[0] eq "?" );
+  return SetExtensions($hash, $list, $name, @a) if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
+  #return "Unknown argument $a[0], choose one of $list" if( $a[0] eq "?" );
+  #return "Unknown argument $a[0], choose one of $list" if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
   
 
   return IT_Do_On_Till($hash, $name, @a) if($a[0] eq "on-till");
@@ -521,6 +528,12 @@ IT_Define($$)
     }
     $hash->{READINGS}{unit}{VAL} = $unitCode;
     $hash->{READINGS}{protocol}{VAL}  = 'HE_EU';
+  } elsif (length($a[2]) == 10 && substr($a[2],0,4) eq '1527') {
+    # Is Protocol EV1527
+    $housecode = $a[2];
+    $oncode = $a[3];
+    $offcode = $a[4];
+    $hash->{READINGS}{protocol}{VAL}  = 'EV1527';
   } else {
     return "Define $a[0]: wrong IT-Code format: specify a 10 digits 0/1/f "
   		if( ($a[2] !~ m/^[f0-1]{10}$/i) );
@@ -671,8 +684,9 @@ IT_Parse($$)
 
   if ((length($bin) % 2) != 0) {
     # suffix 0 
-    $bin = '0'.$bin;   
+    $bin = '0'.$bin;
   }
+  my $binorg = $bin;
   my $msgcode="";
   if (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy HE800;
     $msgcode=substr($bin, 0, 28);
@@ -684,8 +698,10 @@ IT_Parse($$)
         if (substr($bin,0,2) != "10") {
           $msgcode=$msgcode.$bintotristate{substr($bin,0,2)};
         } else {
-          Log3 $hash,4,"$ioname IT:unknown tristate in \"$bin\"";
-          return "unknown tristate in \"$bin\""
+          $msgcode = "";
+          last;
+          #Log3 $hash,4,"$ioname IT:unknown tristate in \"$bin\"";
+          #return "unknown tristate in \"$bin\""
         }
       } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
         $msgcode=$msgcode.$bintotristateHE{substr($bin,0,2)};
@@ -696,11 +712,19 @@ IT_Parse($$)
     }
   }
   
-  Log3 $hash,4,"$ioname IT: msgcode \"$msgcode\" (" . length($msgcode) . ")";
+  Log3 $hash,4,"$ioname IT: msgcode \"$msgcode\" (" . length($msgcode) . ") bin = $binorg";
   
+  my $isEV1527 = undef;
   if (length($msg) == 7) {
-    $housecode=substr($msgcode,0,length($msgcode)-2);
-    $onoffcode=substr($msgcode,length($msgcode)-2,2);
+    if ($msgcode && index(substr($msgcode,0,10), '1') == -1) {    # ITv1
+      $housecode=substr($msgcode,0,10);
+      $onoffcode=substr($msgcode,length($msgcode)-2,2);
+    } else {
+      $isEV1527 = 1;
+      $housecode = '1527x' . sprintf("%5x", oct("0b".substr($binorg,0,20)));
+      $onoffcode = substr($binorg, 20);
+      Log3 $hash,4,"$ioname IT: EV1527 housecode = $housecode  onoffcode = $onoffcode";
+    }
   } elsif (length($msg) == 17 || length($msg) == 19) {
     $groupBit=substr($msgcode,26,1);
     $onoffcode=substr($msgcode,27,1);
@@ -726,15 +750,24 @@ IT_Parse($$)
     if(length($msg) == 7) {
       Log3 $hash,4,"$ioname IT: $housecode not defined (Switch code: $onoffcode)";
       #return "$housecode not defined (Switch code: $onoffcode)!";
-      if ($onoffcode eq "F0") { # on code IT
-        Log3 $hash,4,"$ioname IT: For autocreate please use the on button.";
-        return "$housecode not defined (Switch code: $onoffcode)! \n For autocreate please use the on button.";
-      } 
-      my $tmpOffCode = "F0";
-      my $tmpOnCode = "0F";
-      if ($onoffcode eq "FF") { # on code IT
-        $tmpOnCode = "FF";
-      } 
+      
+      my $tmpOffCode;
+      my $tmpOnCode;
+      if (!defined($isEV1527)) { # itv1
+        if ($onoffcode eq "F0") { # on code IT
+          Log3 $hash,4,"$ioname IT: For autocreate please use the on button.";
+          return "$housecode not defined (Switch code: $onoffcode)! \n For autocreate please use the on button.";
+        } 
+        $tmpOffCode = "F0";
+        $tmpOnCode = "0F";
+        if ($onoffcode eq "FF") { # on code IT
+          $tmpOnCode = "FF";
+        }
+      } else {    # ev1527
+        $tmpOffCode = $ev_action{'off'};
+        #$tmpOnCode = $ev_action{'on'};
+        $tmpOnCode = $onoffcode;
+      }
       return "UNDEFINED IT_$housecode IT $housecode $tmpOnCode $tmpOffCode" if(!$def);
     } elsif (length($msg) == 20) { # HE_EU
       my $isGroupCode = '0';
