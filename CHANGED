@@ -1,0 +1,12 @@
+02.04.2016
+ - jetzt werden auch Sensoren mit dem EV1527 unterstützt
+ - autocreateThreshold (2:30) zugefügt
+
+21.03.2016
+ - fixed doppelte events
+ - fixed on-till bei V3 dimmer
+ 
+20.03.2016
+ - beim readingsupdate werden jetzt events erzeugt
+ - ergänzungen beim logging und umstellung auf Log3
+ - SIGNALduino verwendet jetzt IOWrite
