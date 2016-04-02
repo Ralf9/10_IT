@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1003 2016-04-02 10:00:00Z dev $
+# $Id: 10_IT.pm 1004 2016-04-02 18:00:00Z dev $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -721,7 +721,7 @@ IT_Parse($$)
       $onoffcode=substr($msgcode,length($msgcode)-2,2);
     } else {
       $isEV1527 = 1;
-      $housecode = '1527x' . sprintf("%5x", oct("0b".substr($binorg,0,20)));
+      $housecode = '1527x' . sprintf("%05x", oct("0b".substr($binorg,0,20)));
       $onoffcode = substr($binorg, 20);
       Log3 $hash,4,"$ioname IT: EV1527 housecode = $housecode  onoffcode = $onoffcode";
     }
