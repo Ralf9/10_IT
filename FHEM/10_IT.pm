@@ -707,7 +707,12 @@ IT_Parse($$)
         if (substr($bin,0,2) != "10") {
           $msgcode=$msgcode.$bintotristate{substr($bin,0,2)};
         } else {
-          $msgcode = "";
+          if (length($msgcode) >= 10) {
+            Log3 $hash,5,"$ioname IT Parse bintotristate: msgcode=$msgcode, unknown tristate in onoff-code. is evtl a EV1527 sensor";
+            $msgcode = substr($msgcode,0,10) . '00';
+          } else {
+            $msgcode = "";
+          }
           last;
           #Log3 $hash,4,"$ioname IT:unknown tristate in \"$bin\"";
           #return "unknown tristate in \"$bin\""
@@ -725,7 +730,7 @@ IT_Parse($$)
   
   my $isEV1527 = undef;
   if (length($msg) == 7) {
-    if ($msgcode && index(substr($msgcode,0,10), '1') == -1) {    # ITv1
+    if ($msgcode) { # && index(substr($msgcode,0,10), '1') == -1) {    # ITv1
       $housecode=substr($msgcode,0,10);
       $onoffcode=substr($msgcode,length($msgcode)-2,2);
       Log3 $hash,5,"$ioname IT: V1 housecode = $housecode  onoffcode = $onoffcode";

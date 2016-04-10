@@ -1,6 +1,8 @@
 10.04.2016
  - zusätzliche logs beim set
- - beim ITv1 das model ev1527 zugefügt
+ - für EV1527 Sensoren deren Code ein gültiger Tristatecode (0,1,F) ist, 
+   gibt es jetzt das model ev1527. Der on- und off-code beim define
+   ist dann jeweils 4 Bit
 02.04.2016
  - jetzt werden auch Sensoren mit dem EV1527 unterstützt
  - autocreateThreshold (2:30) zugefügt
