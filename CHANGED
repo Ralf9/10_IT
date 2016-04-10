@@ -1,3 +1,6 @@
+10.04.2016
+ - zusätzliche logs beim set
+ - beim ITv1 das model ev1527 zugefügt
 02.04.2016
  - jetzt werden auch Sensoren mit dem EV1527 unterstützt
  - autocreateThreshold (2:30) zugefügt
