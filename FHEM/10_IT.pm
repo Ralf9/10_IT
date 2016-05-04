@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1005 2016-04-10 20:00:00Z dev $
+# $Id: 10_IT.pm 1005 2016-05-04 19:00:00Z dev $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -91,7 +91,7 @@ IT_Initialize($)
   $hash->{UndefFn}   = "IT_Undef";
   $hash->{ParseFn}   = "IT_Parse";
   $hash->{AttrFn}    = "IT_Attr";
-  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,HE800 unit group dummy:1,0 " .
+  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 unit group dummy:1,0 " .
                        "$readingFnAttributes " .
                        "model:".join(",", sort keys %models);
 
@@ -545,6 +545,17 @@ IT_Define($$)
     $offcode = $a[4];
     $offcode = '0000' if (length($a[4]) != 4);
     $hash->{READINGS}{protocol}{VAL}  = 'EV1527';
+  } elsif (length($a[2]) == 8) {                  # SBC, FreeTec
+    return "Define $a[0]: wrong IT-Code format: specify a 8 digits 0/1/f "
+        if( ($a[2] !~ m/^[f0-1]{8}$/i) );
+    return "Define $a[0]: wrong ON format: specify a 4 digits 0/1/f "
+       if( ($a[3] !~ m/^[f0-1]{4}$/i) );
+    return "Define $a[0]: wrong OFF format: specify a 4 digits 0/1/f "
+       if( ($a[4] !~ m/^[f0-1]{4}$/i) );
+    $housecode = $a[2];
+    $oncode = $a[3];
+    $offcode = $a[4];
+    $hash->{READINGS}{protocol}{VAL}  = 'SBC_FreeTec';
   } else {
     #Log3 $hash,2,"ITdefine v1: $name";
     return "Define $a[0]: wrong IT-Code format: specify a 10 digits 0/1/f "
@@ -730,10 +741,16 @@ IT_Parse($$)
   
   my $isEV1527 = undef;
   if (length($msg) == 7) {
-    if ($msgcode) { # && index(substr($msgcode,0,10), '1') == -1) {    # ITv1
-      $housecode=substr($msgcode,0,10);
-      $onoffcode=substr($msgcode,length($msgcode)-2,2);
-      Log3 $hash,5,"$ioname IT: V1 housecode = $housecode  onoffcode = $onoffcode";
+    if ($msgcode) {    # ITv1 or SBC_FreeTec
+      if (substr($msg,6, 1) eq '0' && substr($msgcode,8,2) ne 'FF') {   # SBC_FreeTec
+        $housecode=substr($msgcode,0,8);
+        $onoffcode=substr($msgcode,length($msgcode)-4,4);
+        Log3 $hash,5,"$ioname IT: SBC_FreeTec housecode = $housecode  onoffcode = $onoffcode";
+      } else {       # ITv1
+        $housecode=substr($msgcode,0,10);
+        $onoffcode=substr($msgcode,length($msgcode)-2,2);
+        Log3 $hash,5,"$ioname IT: V1 housecode = $housecode  onoffcode = $onoffcode";
+      }
     } else {
       $isEV1527 = 1;
       $housecode = '1527x' . sprintf("%05x", oct("0b".substr($binorg,0,20)));
@@ -782,6 +799,10 @@ IT_Parse($$)
         $tmpOffCode = $ev_action{'off'};
         #$tmpOnCode = $ev_action{'on'};
         $tmpOnCode = $onoffcode;
+      }
+      if (length($housecode) == 8){
+        $tmpOffCode = '1000';
+        $tmpOnCode = '0100';
       }
       return "UNDEFINED IT_$housecode IT $housecode $tmpOnCode $tmpOffCode" if(!$def);
     } elsif (length($msg) == 20) { # HE_EU
@@ -915,8 +936,8 @@ sub IT_Attr(@)
   The InterTechno 433MHZ protocol is used by a wide range of devices, which are either of
   the sender/sensor or the receiver/actuator category.
   Right now, we are able to SEND and RECEIVE InterTechno commands.
-  Supported are devices like switches, dimmers, etc. through an <a href="#CUL">CUL</a> device, this must be defined first.
-<br>
+  Supported are devices like switches, dimmers, etc. through an <a href="#CUL">CUL</a> or <a href="#SIGNALduino">SIGNALduino</a> device, 
+  this must be defined first.<br>
   This module supports Intertechno protocol version 1 and version 3.
   Newly found devices are added into the category "IT" by autocreate.
   Hint: IT protocol 1 devices are created on pressing the on-button.
@@ -969,6 +990,7 @@ Examples:
       <code>define roll1 IT 111111111F 11 00 01 10</code><br>
       <code>define otherlamp IT 000000000F 11 10 00 00</code><br>
       <code>define otherroll1 IT FFFFFFF00F 11 10</code><br>
+      <code>define IT_1527xe0fec IT 1527xe0fec 1001 0000</code><br>
       <code>define itswitch1 IT A1</code><br>
       <code>define lamp IT J10</code><br>
       <code>define flsswitch1 IT IV1</code><br>
@@ -1067,6 +1089,8 @@ Examples:
 
     <li><a href="#showtime">showtime</a></li><br>
 
+    <li><a href="#readingFnAttributes">readingFnAttributes</a></li><br>
+
     <a name="model"></a>
     <li>model<br>
         The model attribute denotes the type of the device.
@@ -1084,7 +1108,9 @@ Examples:
 
           <b>Dimmer</b>: itdimmer<br>
 
-          <b>Receiver/Actor</b>: itswitch
+          <b>Receiver/Actor</b>: itswitch<br>
+
+          <b>EV1527</b>: ev1527
     </li><br>
 
 
@@ -1185,6 +1211,7 @@ Beispiele:
       <code>define roll1 IT 111111111F 11 00 01 10</code><br>
       <code>define otherlamp IT 000000000F 11 10 00 00</code><br>
       <code>define otherroll1 IT FFFFFFF00F 11 10</code><br>
+      <code>define IT_1527xe0fec IT 1527xe0fec 1001 0000</code><br>
       <code>define itswitch1 IT A1</code><br>
       <code>define lamp IT J10</code><br>
       <code>define flsswitch1 IT IV1</code><br>
@@ -1281,6 +1308,8 @@ Beispiele:
 
     <li><a href="#showtime">showtime</a></li><br>
 
+    <li><a href="#readingFnAttributes">readingFnAttributes</a></li><br>
+
     <a name="model"></a>
     <li>model<br>
       Hiermit kann das Modell des IT-Ger&auml;ts n&auml;her beschrieben werden. Diese 
@@ -1296,7 +1325,9 @@ Beispiele:
 
         <b>Dimmer</b>: itdimmer<br>
 
-        <b>Empf&auml;nger/Actor</b>: itswitch
+        <b>Empf&auml;nger/Actor</b>: itswitch<br>
+
+        <b>EV1527</b>: ev1527
     </li><br>
 
 

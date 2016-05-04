@@ -1,3 +1,5 @@
+04.05.2016
+ - jetzt werden auch die Philips SBC und FreeTec Funksteckdosen unterstützt
 10.04.2016
  - zusätzliche logs beim set
  - für EV1527 Sensoren deren Code ein gültiger Tristatecode (0,1,F) ist, 
