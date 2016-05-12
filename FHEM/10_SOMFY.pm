@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_SOMFY.pm 11028 2016-03-08 09:11:38Z thomyd $
+# $Id: 10_SOMFY.pm 11028 2016-05-12 20:11:38Z thomyd $
 #
 # SOMFY RTS / Simu Hz protocol module for FHEM
 # (c) Thomas Dankert <post@thomyd.de>
@@ -324,37 +324,39 @@ sub SOMFY_SendCommand($@)
 
 	my $io = $hash->{IODev};
 
-	## Do we need to change RFMode to SlowRF?
-	if (   defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"switch_rfmode"} ) )
-	{
-		if ( $attr{ $name }{"switch_rfmode"} eq "1" )
-		{    # do we need to change RFMode of IODev
-			my $ret =
-			  CallFn( $io->{NAME}, "AttrFn", "set",
-				( $io->{NAME}, "rfmode", "SlowRF" ) );
+	if ($io->{TYPE} ne "SIGNALduino") {		# the IODev is no SIGNALduino
+		## Do we need to change RFMode to SlowRF?
+		if (   defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"switch_rfmode"} ) )
+		{
+			if ( $attr{ $name }{"switch_rfmode"} eq "1" )
+			{    # do we need to change RFMode of IODev
+				my $ret =
+				  CallFn( $io->{NAME}, "AttrFn", "set",
+					( $io->{NAME}, "rfmode", "SlowRF" ) );
+			}
 		}
-	}
 
-	## Do we need to change symbol length?
-	if (   defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"symbol-length"} ) )
-	{
-		$message = "t" . $attr{ $name }{"symbol-length"};
-		IOWrite( $hash, "Y", $message );
-		Log GetLogLevel( $name, 4 ),
-		  "SOMFY set symbol-length: $message for $io->{NAME}";
-	}
+		## Do we need to change symbol length?
+		if (   defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"symbol-length"} ) )
+		{
+			$message = "t" . $attr{ $name }{"symbol-length"};
+			IOWrite( $hash, "Y", $message );
+			Log GetLogLevel( $name, 4 ),
+			  "SOMFY set symbol-length: $message for $io->{NAME}";
+		}
 
 
-	## Do we need to change frame repetition?
-	if ( defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"repetition"} ) )
-	{
-		$message = "r" . $attr{ $name }{"repetition"};
-		IOWrite( $hash, "Y", $message );
-		Log GetLogLevel( $name, 4 ),
-		  "SOMFY set repetition: $message for $io->{NAME}";
+		## Do we need to change frame repetition?
+		if ( defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"repetition"} ) )
+		{
+			$message = "r" . $attr{ $name }{"repetition"};
+			IOWrite( $hash, "Y", $message );
+			Log GetLogLevel( $name, 4 ),
+			  "SOMFY set repetition: $message for $io->{NAME}";
+		}
 	}
 
 	my $value = $name ." ". join(" ", @args);
@@ -393,9 +395,18 @@ sub SOMFY_SendCommand($@)
 	( undef, $value ) = split( " ", $value, 2 );    # Not interested in the name...
 
 	## Send Message to IODev using IOWrite
-	Log3($name,5,"SOMFY_sendCommand: $name -> message :$message: ");
-	IOWrite( $hash, "Y", $message );
-
+	if ($io->{TYPE} ne "SIGNALduino") {
+		# das IODev ist kein SIGNALduino
+		Log3($name,5,"SOMFY_sendCommand: $name -> message :$message: ");
+		IOWrite( $hash, "Y", $message );
+	} else {
+		# SIGNALduino
+		my $SignalRepeats = AttrVal($name,'repetition', '6');
+		$message = 'P43#' . substr($message,1). '#R' . $SignalRepeats;
+		Log3 $hash, 4, "$io->{NAME} SOMFY_sendCommand: $name -> message :$message: ";
+		IOWrite($hash, 'sendMsg', $message);
+	}
+	
 	# increment encryption key and rolling code
 	my $enc_key_increment      = hex( $enckey );
 	my $rolling_code_increment = hex( $rollingcode );
@@ -407,35 +418,37 @@ sub SOMFY_SendCommand($@)
 	setReadingsVal($hash, "enc_key", $new_enc_key, $timestamp);
 	setReadingsVal($hash, "rolling_code", $new_rolling_code, $timestamp);
 
-	## Do we need to change symbol length back?
-	if (   defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"symbol-length"} ) )
-	{
-		$message = "t" . $somfy_defsymbolwidth;
-		IOWrite( $hash, "Y", $message );
-		Log GetLogLevel( $name, 4 ),
-		  "SOMFY set symbol-length back: $message for $io->{NAME}";
-	}
+	if ($io->{TYPE} ne "SIGNALduino") {		# the IODev is no SIGNALduino
+		## Do we need to change symbol length back?
+		if (   defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"symbol-length"} ) )
+		{
+			$message = "t" . $somfy_defsymbolwidth;
+			IOWrite( $hash, "Y", $message );
+			Log GetLogLevel( $name, 4 ),
+			  "SOMFY set symbol-length back: $message for $io->{NAME}";
+		}
 
-	## Do we need to change repetition back?
-	if (   defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"repetition"} ) )
-	{
-		$message = "r" . $somfy_defrepetition;
-		IOWrite( $hash, "Y", $message );
-		Log GetLogLevel( $name, 4 ),
-		  "SOMFY set repetition back: $message for $io->{NAME}";
-	}
+		## Do we need to change repetition back?
+		if (   defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"repetition"} ) )
+		{
+			$message = "r" . $somfy_defrepetition;
+			IOWrite( $hash, "Y", $message );
+			Log GetLogLevel( $name, 4 ),
+			  "SOMFY set repetition back: $message for $io->{NAME}";
+		}
 
-	## Do we need to change RFMode back to HomeMatic??
-	if (   defined( $attr{ $name } )
-		&& defined( $attr{ $name }{"switch_rfmode"} ) )
-	{
-		if ( $attr{ $name }{"switch_rfmode"} eq "1" )
-		{    # do we need to change RFMode of IODev?
-			my $ret =
-			  CallFn( $io->{NAME}, "AttrFn", "set",
-				( $io->{NAME}, "rfmode", "HomeMatic" ) );
+		## Do we need to change RFMode back to HomeMatic??
+		if (   defined( $attr{ $name } )
+			&& defined( $attr{ $name }{"switch_rfmode"} ) )
+		{
+			if ( $attr{ $name }{"switch_rfmode"} eq "1" )
+			{    # do we need to change RFMode of IODev?
+				my $ret =
+				  CallFn( $io->{NAME}, "AttrFn", "set",
+					( $io->{NAME}, "rfmode", "HomeMatic" ) );
+			}
 		}
 	}
 
