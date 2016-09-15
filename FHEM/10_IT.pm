@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1005 2016-05-04 19:00:00Z dev $
+# $Id: 10_IT.pm 1005 2016-08-31 18:00:00Z dev $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -54,6 +54,7 @@ my %models = (
 my %bintotristate=(
   "00" => "0",
   "01" => "F",
+  "10" => "D",
   "11" => "1"
 );
 my %bintotristateV3=(
@@ -196,7 +197,7 @@ IT_Set($@)
     #Log3 $hash, 2, "Set ignored for EV1527 (1527X) devices";
     return "";
   } else {
-    $list .= "dimUp:noArg dimDown:noArg on-till" if( AttrVal($name, "model", "") eq "itdimmer" );
+    $list .= "dimup:noArg dimdown:noArg on-till" if( AttrVal($name, "model", "") eq "itdimmer" );
   }
   if ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
     $list .= " learn_on_codes:noArg learn_off_codes:noArg";
@@ -262,6 +263,9 @@ IT_Set($@)
       }
     } else {
       readingsSingleUpdate($lh, "state", $cmd,1);
+      if( AttrVal($name, "model", "") eq "itdimmer" ) {
+        readingsSingleUpdate($lh,"dim",$cmd,1);
+      }
     }
   }
 
@@ -560,11 +564,11 @@ IT_Define($$)
     #Log3 $hash,2,"ITdefine v1: $name";
     return "Define $a[0]: wrong IT-Code format: specify a 10 digits 0/1/f "
   		if( ($a[2] !~ m/^[f0-1]{10}$/i) );
-    return "Define $a[0]: wrong ON format: specify a 2 digits 0/1/f "
-    	if( ($a[3] !~ m/^[f0-1]{2}$/i) );
+    return "Define $a[0]: wrong ON format: specify a 2 digits 0/1/f/d "
+    	if( ($a[3] !~ m/^[df0-1]{2}$/i) );
 
-    return "Define $a[0]: wrong OFF format: specify a 2 digits 0/1/f "
-    	if( ($a[4] !~ m/^[f0-1]{2}$/i) );
+    return "Define $a[0]: wrong OFF format: specify a 2 digits 0/1/f/d "
+    	if( ($a[4] !~ m/^[df0-1]{2}$/i) );
     $housecode = $a[2];
     $oncode = $a[3];
     $offcode = $a[4];
@@ -578,13 +582,13 @@ IT_Define($$)
   
   
   if (int(@a) > 5) {
-  	return "Define $a[0]: wrong dimup-code format: specify a 2 digits 0/1/f "
-    	if( ($a[5] !~ m/^[f0-1]{2}$/i) );
+  	return "Define $a[0]: wrong dimup-code format: specify a 2 digits 0/1/f/d "
+    	if( ($a[5] !~ m/^[df0-1]{2}$/i) );
 		$hash->{$it_c2b{"dimup"}}  = lc($a[5]);
    
 	  if (int(@a) == 7) {
-  		return "Define $a[0]: wrong dimdown-code format: specify a 2 digits 0/1/f "
-	    	if( ($a[6] !~ m/^[f0-1]{2}$/i) );
+  		return "Define $a[0]: wrong dimdown-code format: specify a 2 digits 0/1/f/d "
+	    	if( ($a[6] !~ m/^[df0-1]{2}$/i) );
     	$hash->{$it_c2b{"dimdown"}}  = lc($a[6]);
   	}
   } else {
@@ -720,7 +724,8 @@ IT_Parse($$)
         } else {
           if (length($msgcode) >= 10) {
             Log3 $hash,5,"$ioname IT Parse bintotristate: msgcode=$msgcode, unknown tristate in onoff-code. is evtl a EV1527 sensor";
-            $msgcode = substr($msgcode,0,10) . '00';
+            # $msgcode = substr($msgcode,0,10) . '00';
+            $msgcode = substr($msgcode,0,10) . $bintotristate{substr($binorg,20,2)} . $bintotristate{substr($binorg,22,2)};
           } else {
             $msgcode = "";
           }
@@ -886,6 +891,17 @@ IT_Parse($$)
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         readingsSingleUpdate($def->{$name},"dim",0,1);
       }
+      
+    } elsif ($def->{$name}->{$it_c2b{"dimup"}} eq lc($onoffcode)) {
+      $newstate="dimup";
+      if( AttrVal($name, "model", "") eq "itdimmer" ) {
+        readingsSingleUpdate($def->{$name},"dim","dimup",1);
+      }
+    } elsif ($def->{$name}->{$it_c2b{"dimdown"}} eq lc($onoffcode)) {
+      $newstate="dimdown";
+      if( AttrVal($name, "model", "") eq "itdimmer" ) {
+        readingsSingleUpdate($def->{$name},"dim","dimdown",1);
+      }
     } elsif ('d' eq lc($onoffcode)) {
       # dim
       my $binVal = ((bin2dec($dimCode)+1)*100)/16;
@@ -905,7 +921,6 @@ IT_Parse($$)
     Log3 $def->{$name}{NAME},3,"$ioname IT: $def->{$name}{NAME} ".$def->{$name}->{STATE}."->".$newstate;
     push(@list,$def->{$name}{NAME});
     readingsSingleUpdate($def->{$name},"state",$newstate,1);
-    
   }
   return @list;
 }
