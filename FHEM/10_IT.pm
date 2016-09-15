@@ -1,5 +1,5 @@
 ######################################################
-# $Id: 10_IT.pm 1005 2016-08-31 18:00:00Z dev $
+# $Id: 10_IT.pm 1005 2016-09-15 17:00:00Z dev $
 #
 # InterTechno Switch Manager as FHM-Module
 #
@@ -205,9 +205,6 @@ IT_Set($@)
 
   return SetExtensions($hash, $list, $name, @a) if( $a[0] eq "?" );
   return SetExtensions($hash, $list, $name, @a) if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
-  #return "Unknown argument $a[0], choose one of $list" if( $a[0] eq "?" );
-  #return "Unknown argument $a[0], choose one of $list" if( !grep( $_ =~ /^\Q$a[0]\E($|:)/, split( ' ', $list ) ) );
-  
 
   return IT_Do_On_Till($hash, $name, @a) if($a[0] eq "on-till");
   return "Bad time spec" if($na == 2 && $a[1] !~ m/^\d*\.?\d+$/);
@@ -260,6 +257,8 @@ IT_Set($@)
             readingsSingleUpdate($lh, "state", $cmd,1);
           }
         }
+      } else {
+        readingsSingleUpdate($lh, "state", $cmd,1);
       }
     } else {
       readingsSingleUpdate($lh, "state", $cmd,1);
@@ -943,6 +942,8 @@ sub IT_Attr(@)
 1;
 
 =pod
+=item summary    supports Intertechno protocol version 1 and version 3 devices
+=item summary_DE unterstuetzt Intertechno Protocol Version 1 und Version 3 Geraete
 =begin html
 
 <a name="IT"></a>
