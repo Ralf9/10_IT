@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id$
+# $Id: 10_IT.pm 12741 2017-01-11 19:00:00Z dev $
 #
 ######################################################
 package main;
@@ -591,7 +591,18 @@ IT_Set($@)
 	
 	my $SignalRepeats = AttrVal($name,'ITrepetition', '6');
 	my $ITClock = AttrVal($name,'ITclock', undef);
+	my $f = AttrVal($name,'ITfrequency',undef);
+	my $ITfrequency = '';
 	my $protocolId;
+	if (defined($f)) {
+		$f = $f / 26 * 65536;
+		my $f2 = sprintf("%02x", $f / 65536);
+		my $f1 = sprintf("%02x", int($f % 65536) / 256);
+		my $f0 = sprintf("%02x", $f % 256);
+		my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
+		Log3 $hash, 3, "$io->{NAME} IT_set: Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
+		$ITfrequency = "#F$f2$f1$f0";
+	}
 	if (defined($ITClock)) {
 		$ITClock = '#C' . $ITClock;
 	} else {
@@ -604,7 +615,7 @@ IT_Set($@)
 		$protocolId = 'P3#';
 	}
 	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=$protocolId" . substr($message,2) . '#R' . $SignalRepeats . $ITClock;
-	IOWrite($hash, 'sendMsg', $protocolId . substr($message,2) . '#R' . $SignalRepeats . $ITClock);
+	IOWrite($hash, 'sendMsg', $protocolId . substr($message,2) . '#R' . $SignalRepeats . $ITClock . $ITfrequency);
   }
   return $ret;
 }
@@ -1057,10 +1068,9 @@ IT_Parse($$)
       Log3 $hash,2,"$ioname IT: $housecode not defined (HE800)";
       return "UNDEFINED IT_HE800_$housecode IT " . "HE800 $transmittercode $unitCode" if(!$def);
     } else {
-      Log3 $hash,2,"$ioname IT: " . substr($msgcode,0,26) . " not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)";
-      my $tmpHouseCode = substr($msgcode,0,26);
-      my $decCode = bin2dec($tmpHouseCode);
-      return "UNDEFINED IT_V3_$decCode IT " . substr($msgcode,0,26) . " $groupBit $unitCode" if(!$def);
+      my $hexCode = sprintf("%x", oct("0b".$housecode));
+      Log3 $hash,2,"$ioname IT: IT_V3_$hexCode ($housecode) not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)";
+      return "UNDEFINED IT_V3_$hexCode IT " . substr($msgcode,0,26) . " $groupBit $unitCode" if(!$def);
     }
   }
   $def=$modules{IT}{defptr}{lc($housecode)};
