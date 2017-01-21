@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 12741 2017-01-21 19:00:00Z dev $
+# $Id: 10_IT.pm 12741 2017-01-21 22:00:00Z dev $
 #
 ######################################################
 package main;
@@ -120,7 +120,7 @@ IT_Initialize($)
   $hash->{UndefFn}   = "IT_Undef";
   $hash->{ParseFn}   = "IT_Parse";
   $hash->{AttrFn}    = "IT_Attr";
-  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 unit group dummy:1,0 " .
+  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 SIGNALduinoProtocolId unit group dummy:1,0 " .
                        "$readingFnAttributes " .
                        "model:".join(",", sort keys %models);
 
@@ -609,14 +609,22 @@ IT_Set($@)
 	} else {
 		$ITClock = '';
 	}
-	if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
-		$protocolId = 'P17#';
+	$protocolId = AttrVal($name,'SIGNALduinoProtocolId', undef);
+	if (defined($protocolId)) {
+		$protocolId = 'P' . $protocolId . '#';
 	} else {
-		# IT V1
-		$protocolId = 'P3#';
+		if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
+			$protocolId = 'P17#';
+		} else {
+			$protocolId = 'P3#';  # IT V1
+		}
 	}
-	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=$protocolId" . substr($message,2) . '#R' . $SignalRepeats . $ITClock;
-	IOWrite($hash, 'sendMsg', $protocolId . substr($message,2) . '#R' . $SignalRepeats . $ITClock . $ITfrequency);
+	$message = substr($message,2);
+	if (substr($message,0,1) eq "h") {    # h entfernen falls am am Anfang
+		$message = substr($message,1);
+	}
+	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=" . $protocolId . $message . '#R' . $SignalRepeats . $ITClock;
+	IOWrite($hash, 'sendMsg', $protocolId . $message . '#R' . $SignalRepeats . $ITClock . $ITfrequency);
   }
   return $ret;
 }
