@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 12741 2017-01-11 19:00:00Z dev $
+# $Id: 10_IT.pm 12741 2017-01-21 19:00:00Z dev $
 #
 ######################################################
 package main;
@@ -222,9 +222,6 @@ IT_Set($@)
       }
       $list = (join(" ", sort keys %it_c2b) . " dim:slider,0,6.25,100")
         if( AttrVal($name, "model", "") eq "itdimmer" );
-  } elsif ($hash->{READINGS}{protocol}{VAL} eq "EV1527") {                 # EV1527
-    #Log3 $hash, 2, "Set ignored for EV1527 (1527X) devices";
-    return "";
   } elsif ($hash->{READINGS}{protocol}{VAL} eq "HE800") {
     $c = $it_c2b_he800{$a[0]};
     if($na > 1 && $a[0] eq "dim") {  
@@ -252,7 +249,7 @@ IT_Set($@)
   my $io = $hash->{IODev};
   my $v = $name ." ". join(" ", @a);
   ## Log that we are going to switch InterTechno
-  Log3 $hash, 2, "$io->{NAME} IT_set: $v";
+  Log3 $hash, 3, "$io->{NAME} IT_set: $v";
   my (undef, $cmd) = split(" ", $v, 2);	# Not interested in the name...
   
   # Look for all devices with the same code, and set state, timestamp
@@ -340,7 +337,7 @@ IT_Set($@)
 		#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
 		$message = $attr{$name}{"ITclock"};
 		CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", $message));
-		Log3 $hash, 2, "IT set ITclock: $message for $io->{NAME}";
+		Log3 $hash, 3, "IT set ITclock: $message for $io->{NAME}";
 	}
 
 	## Do we need to change ITrepetition ??	
@@ -358,7 +355,7 @@ IT_Set($@)
 		my $f0 = sprintf("%02x", $f % 256);
 
 		my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
-		Log3 $hash, 2, "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
+		Log3 $hash, 3, "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
 		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if$f2$f1$f0"));
 	}
   }
@@ -545,7 +542,11 @@ IT_Set($@)
         $message = "ish".uc($bin);
     }
   } else {
-    $message = "is".uc($hash->{XMIT}.$hash->{$c});
+    my $onoffcode = $hash->{$c};
+    if (length($onoffcode) == 4) {   # EV1527
+      $onoffcode = $bintotristate{substr($onoffcode,0,2)} . $bintotristate{substr($onoffcode,2,2)};
+    }
+    $message = "is".uc($hash->{XMIT}.$onoffcode);
   }
 
   
@@ -563,7 +564,7 @@ IT_Set($@)
         if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
         	$message = "isr".$it_defrepetition;
         	CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		Log3 $hash, 2, "IT set ITrepetition back: $message for $io->{NAME}";
+		Log3 $hash, 3, "IT set ITrepetition back: $message for $io->{NAME}";
 	}
 
         ## Do we need to change ITfrequency back??	
@@ -575,7 +576,7 @@ IT_Set($@)
 	## Do we need to change ITClock back??	
 	if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) 
         {
-        	Log3 $hash, 2, "Setting ITClock back to 420";
+        	Log3 $hash, 3, "Setting ITClock back to 420";
         	#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "sic250"));
         	CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", "420"));
         }
@@ -735,10 +736,22 @@ IT_Define($$)
     # Is Protocol EV1527
     #Log3 $hash,2,"ITdefine 1527: $name a3=" . $a[3];
     $housecode = $a[2];
+    if (substr($housecode,0,4) eq '1527') {
+      my $evcode;
+      my $bincode = sprintf("%020b",hex(substr($housecode,5)));
+      for (my $n=0; $n<20; $n=$n+2) {
+        $evcode = $evcode . $bintotristate{substr($bincode,$n,2)};
+      }
+      $hash->{XMIT} = lc($evcode);
+    } else {
+      $hash->{XMIT} = lc($housecode);
+    }
+    return "Define $a[0]: wrong dimup-code format: specify a 4 digits 0/1 "
+       if ( ($a[3] !~ m/^[0-1]{4}$/i) );
+    return "Define $a[0]: wrong dimup-code format: specify a 4 digits 0/1 "
+       if ( ($a[4] !~ m/^[0-1]{4}$/i) );
     $oncode = $a[3];
-    $oncode = '0000' if (length($a[3]) != 4); 
     $offcode = $a[4];
-    $offcode = '0000' if (length($a[4]) != 4);
     $hash->{READINGS}{protocol}{VAL}  = 'EV1527';
   } elsif (length($a[2]) == 8) {                  # SBC, FreeTec
     return "Define $a[0]: wrong IT-Code format: specify a 8 digits 0/1/f "
@@ -766,25 +779,36 @@ IT_Define($$)
     $hash->{READINGS}{protocol}{VAL}  = 'V1';
   }
 
-
-  $hash->{XMIT} = lc($housecode);
+  if ($hash->{READINGS}{protocol}{VAL} ne 'EV1527') {
+    $hash->{XMIT} = lc($housecode);
+  }
   $hash->{$it_c2b{"on"}}  = lc($oncode);
   $hash->{$it_c2b{"off"}}  = lc($offcode);
   
   
   if (int(@a) > 5) {
-  	return "Define $a[0]: wrong dimup-code format: specify a 2 digits 0/1/f/d "
-    	if( ($a[5] !~ m/^[df0-1]{2}$/i) );
-		$hash->{$it_c2b{"dimup"}}  = lc($a[5]);
-   
-	  if (int(@a) == 7) {
-  		return "Define $a[0]: wrong dimdown-code format: specify a 2 digits 0/1/f/d "
-	    	if( ($a[6] !~ m/^[df0-1]{2}$/i) );
-    	$hash->{$it_c2b{"dimdown"}}  = lc($a[6]);
-  	}
+	if (length($a[5]) != 4) { # kein EV1527
+		return "Define $a[0]: wrong dimup-code format: specify a 2 digits 0/1/f/d "
+		   if( ($a[5] !~ m/^[df0-1]{2}$/i) );
+	} else {
+		return "Define $a[0]: wrong dimup-code format: specify a 4 digits 0/1 "
+		   if( ($a[5] !~ m/^[0-1]{4}$/i) );
+	}
+	$hash->{$it_c2b{"dimup"}}  = lc($a[5]);
+	
+	if (int(@a) == 7) {
+		if (length($a[6]) != 4) { # kein EV1527
+			return "Define $a[0]: wrong dimdown-code format: specify a 2 digits 0/1/f/d "
+			   if( ($a[6] !~ m/^[df0-1]{2}$/i) );
+		} else {
+			return "Define $a[0]: wrong dimup-code format: specify a 4 digits 0/1 "
+			   if( ($a[6] !~ m/^[0-1]{4}$/i) );
+		}
+	}
+	$hash->{$it_c2b{"dimdown"}}  = lc($a[6]);
   } else {
-		$hash->{$it_c2b{"dimup"}}  = "00";
-   	$hash->{$it_c2b{"dimdown"}}  = "00";
+	$hash->{$it_c2b{"dimup"}}  = "00";
+	$hash->{$it_c2b{"dimdown"}}  = "00";
   }
   
   my $code = lc($housecode);
