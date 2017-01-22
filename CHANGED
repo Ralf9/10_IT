@@ -1,3 +1,9 @@
+22.01.2017
+ - Beim EV1527 dimup und dimdown zugefügt.
+ - Beim EV1527 funktioniert nun auch das set
+ - Attribut userV1setCodes zugefügt, damit können beim ITv1 Protokoll eigene setcodes zugefügt werden .zB.:
+   userV1setCodes=rot:FD blau:1F
+   userV1setCodes=hoch:1001 runter:1000 stop:1011
 04.05.2016
  - jetzt werden auch die Philips SBC und FreeTec Funksteckdosen unterstützt
 10.04.2016
