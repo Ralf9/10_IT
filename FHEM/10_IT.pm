@@ -6,13 +6,14 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 12741 2017-01-21 22:00:00Z dev $
+# $Id: 10_IT.pm 12741 2017-01-22 15:00:00Z dev $
 #
 ######################################################
 package main;
 
 use strict;
 use warnings;
+#use Data::Dumper qw(Dumper);
 
 use SetExtensions;
 
@@ -120,7 +121,7 @@ IT_Initialize($)
   $hash->{UndefFn}   = "IT_Undef";
   $hash->{ParseFn}   = "IT_Parse";
   $hash->{AttrFn}    = "IT_Attr";
-  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 SIGNALduinoProtocolId unit group dummy:1,0 " .
+  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 SIGNALduinoProtocolId userV1setCodes unit group dummy:1,0 " .
                        "$readingFnAttributes " .
                        "model:".join(",", sort keys %models);
 
@@ -182,6 +183,14 @@ IT_Set($@)
 
   my $list = "";
   $list .= "off:noArg on:noArg " if( AttrVal($name, "model", "") ne "itremote" );
+  
+  if ($hash->{userV1setCodes}) {
+     if ($hash->{READINGS}{protocol}{VAL} eq "EV1527" || $hash->{READINGS}{protocol}{VAL} eq "V1") {
+        foreach my $setCode (keys %{$hash->{userV1setCodes}}) {
+           $list .= "$setCode:noArg ";
+        }
+     }
+  }
 
   my $c = $it_c2b{$a[0]};
  
@@ -542,7 +551,14 @@ IT_Set($@)
         $message = "ish".uc($bin);
     }
   } else {
-    my $onoffcode = $hash->{$c};
+    my $onoffcode;
+    if (defined($c)) {
+       $onoffcode = $hash->{$c};
+    } else {
+       if ($hash->{userV1setCodes}) {
+          $onoffcode = $hash->{userV1setCodes}{$a[0]};
+       }
+    }
     if (length($onoffcode) == 4) {   # EV1527
       $onoffcode = $bintotristate{substr($onoffcode,0,2)} . $bintotristate{substr($onoffcode,2,2)};
     }
@@ -619,9 +635,11 @@ IT_Set($@)
 			$protocolId = 'P3#';  # IT V1
 		}
 	}
-	$message = substr($message,2);
-	if (substr($message,0,1) eq "h") {    # h entfernen falls am am Anfang
-		$message = substr($message,1);
+	if ($hash->{READINGS}{protocol}{VAL} ne "EV1527" && $hash->{READINGS}{protocol}{VAL} ne "V1") {    # bei ITv1 und EV1527 wird das "is" am Anfang nicht entfernt
+		$message = substr($message,2);
+		if (substr($message,0,1) eq "h") {    # h entfernen falls am am Anfang
+			$message = substr($message,1);
+		}
 	}
 	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=" . $protocolId . $message . '#R' . $SignalRepeats . $ITClock;
 	IOWrite($hash, 'sendMsg', $protocolId . $message . '#R' . $SignalRepeats . $ITClock . $ITfrequency);
@@ -1221,14 +1239,33 @@ sub IT_Attr(@)
 {
 	my ($cmd,$name,$aName,$aVal) = @_;
 	my $hash = $defs{$name};
-
+	my $ret;
+	
 	#Log3 $hash, 4, "$name IT_Attr: Calling Getting Attr sub with args: $cmd $aName = $aVal";
 		
 	if( $aName eq 'model' && $aVal eq 'ev1527') {
 		#Log3 $hash, 4, "$name IT_Attr: ev1527";
 		$hash->{READINGS}{protocol}{VAL}  = 'EV1527';
+	} elsif ( $aName eq 'userV1setCodes') {
+		my @array = split(" ",$aVal);
+		$hash->{userV1setCodes} = undef;
+		
+		foreach my $item(@array) {
+			my ($i,$j)= split(/:/, $item);
+			$ret = "$i wrong chars in setname (only [0-9a-zA-Z-_])"
+			   if ( ($i !~ m/^[0-9a-z-_]+$/i) );
+			if (length($j) != 4) { # kein EV1527
+				$ret = "$j wrong setcode format: specify a 2 digits 0/1/f/d "
+				   if( ($j !~ m/^[df0-1]{2}$/i) );
+			} else {
+				$ret = "$j wrong setcode format: specify a 4 digits 0/1 "
+				   if( ($j !~ m/^[0-1]{4}$/i) );
+			}
+			last if (defined($ret));
+			$hash->{userV1setCodes}{$i} = $j;
+		}
 	}
-	return undef;
+	return $ret;
 }
 
 1;
