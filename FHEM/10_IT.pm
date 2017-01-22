@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 12741 2017-01-22 15:00:00Z dev $
+# $Id: 10_IT.pm 12741 2017-01-22 18:00:00Z dev $
 #
 ######################################################
 package main;
@@ -262,7 +262,12 @@ IT_Set($@)
   my (undef, $cmd) = split(" ", $v, 2);	# Not interested in the name...
   
   # Look for all devices with the same code, and set state, timestamp
-  my $code = "$hash->{XMIT}";
+  my $code;
+  if ($hash->{READINGS}{protocol}{VAL} eq "EV1527") {  # beim EV1527 darf der code nicht aus dem $hash->{XMIT} geholt werden
+     $code = "$hash->{CODE}{1}";
+  } else {
+     $code = "$hash->{XMIT}";
+  }
   foreach my $n (keys %{ $modules{IT}{defptr}{$code} }) {
     my $lh = $modules{IT}{defptr}{$code}{$n};
     
