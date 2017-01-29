@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 12741 2017-01-22 18:00:00Z dev $
+# $Id: 10_IT.pm 13196 2017-01-29 15:27:22Z dev $
 #
 ######################################################
 package main;
@@ -564,7 +564,7 @@ IT_Set($@)
           $onoffcode = $hash->{userV1setCodes}{$a[0]};
        }
     }
-    if (length($onoffcode) == 4) {   # EV1527
+    if (length($onoffcode) == 4 && $hash->{READINGS}{protocol}{VAL} ne 'SBC_FreeTec') {   # EV1527
       $onoffcode = $bintotristate{substr($onoffcode,0,2)} . $bintotristate{substr($onoffcode,2,2)};
     }
     $message = "is".uc($hash->{XMIT}.$onoffcode);
@@ -1553,7 +1553,8 @@ Examples:
    F&uuml;r Intertechno Protokoll 3 besteht der hauscode aus 26 Ziffern. Zusätzlich werden noch 4 Ziffern als Unit Code sowie eine Ziffer als Group code benötigt.
 <br> 
    Neues IT Element in FHEM anlegen: define IT myITSwitch IT <Adresse 26 Bit> <Group bit> <Unit Code> 
-<br> 
+<br><br>
+<b>Intertechno Protokoll 1 (ITv1)</b>
    <ul>
    <li><code>&lt;housecode&gt;</code> 10 Ziffern lange tri-State-Zahl (0/1/F) abh&auml;ngig vom benutzten Ger&auml;t.</li>
    <li><code>&lt;on-code&gt;</code> 2 Ziffern lange tri-State-Zahl, die den Einschaltbefehl enth&auml;lt;
@@ -1566,7 +1567,16 @@ Examples:
      die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
    </ul>
    <br>
-   <b>HE800</b><br>
+<b>SBC_FreeTec</b><br>
+   <ul>
+   <li><code>&lt;housecode&gt;</code> 8 Ziffern lange tri-State-Zahl (0/1/F) abh&auml;ngig vom benutzten Ger&auml;t.</li>
+   <li><code>&lt;on-code&gt;</code> 4 Ziffern lange tri-State-Zahl, die den Einschaltbefehl enth&auml;lt;
+     die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
+   <li><code>&lt;off-code&gt;</code> 4 Ziffern lange tri-State-Zahl, die den Ausschaltbefehl enth&auml;lt;
+     die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
+   </ul>
+   <br>
+<b>HE800</b><br>
    <ul>
      <li><code>&lt;Transmitter ID&gt;</code> Eindeutige Transmitter-ID (1..65535)</li>
      <li><code>&lt;Receiver ID&gt;</code> Receiver-ID [0]1..15, 0=Broadcast 1-15 (HE844A button# 1-4 & MASTER=0, HE850 UNIT# 1-15, HE853 = 1)</li>
@@ -1581,6 +1591,7 @@ Beispiele:
       <code>define otherlamp IT 000000000F 11 10 00 00</code><br>
       <code>define otherroll1 IT FFFFFFF00F 11 10</code><br>
       <code>define IT_1527xe0fec IT 1527xe0fec 1001 0000</code><br>
+      <code>define Steck_1 IT FFF00FFF 000F 0000</code><br>
       <code>define itswitch1 IT A1</code><br>
       <code>define lamp IT J10</code><br>
       <code>define flsswitch1 IT IV1</code><br>
@@ -1588,7 +1599,7 @@ Beispiele:
       <code>define HE800_TID1_SW1 IT HE800 1 1</code><br>
     </ul>
    <br>
-   F&uuml;r Intertechno Protokoll 3 ist der &lt;housecode&gt; eine 26-stellige Zahl. Zus&auml;tzlich wird noch ein 1 stelliger Gruppen-Code, sowie 
+   F&uuml;r <b>Intertechno Protokoll 3 (ITv3)</b> ist der &lt;housecode&gt; eine 26-stellige Zahl. Zus&auml;tzlich wird noch ein 1 stelliger Gruppen-Code, sowie 
    ein 4-stelliger unit code verwendet.
    <ul>
    <li><code>&lt;address&gt;</code> ist eine 26-stellige Nummer (0/1)</li>
@@ -1712,7 +1723,21 @@ Beispiele:
       die mit Platzhaltern in Namensangaben arbeiten (siehe <a href="#devspec">devspec</a>).
       Sie werden weiterhin mit der speziellen devspec (Ger&auml;tebeschreibung) "ignored=1" gefunden.
         </li><br>
-
+        
+     <a name="userV1setCodes"></a>
+     <li>userV1setCodes<br>
+       damit k&ouml;nnen beim ITv1 Protokoll eigene setcodes zugef&uuml;gt werden. Beispiele:
+       <ul><code>
+       attr lamp userV1setCodes rot:FD blau:1F<br>
+       attr lamp userV1setCodes hoch:1001 runter:1000 stop:1011
+       </code></ul>
+    </li><br>
+    
+    <a name="SIGNALduinoProtocolId"></a>
+    <li>SIGNALduinoProtocolId<br>
+      Damit kann beim Senden mit dem SIGNALduino eine ProtocolId gew&auml;hlt werden. 
+    </li><br>
+     
   </ul>
   <br>
 
