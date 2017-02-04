@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 13196 2017-01-29 15:27:22Z dev $
+# $Id: 10_IT.pm 13196 2017-02-04 15:27:22Z dev $
 #
 ######################################################
 package main;
@@ -646,7 +646,7 @@ IT_Set($@)
 			$message = substr($message,1);
 		}
 	}
-	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=" . $protocolId . $message . '#R' . $SignalRepeats . $ITClock;
+	Log3 $hash, 4, "$io->{NAME} IT_set: sendMsg=" . $protocolId . $message . '#R' . $SignalRepeats . $ITClock . $ITfrequency;
 	IOWrite($hash, 'sendMsg', $protocolId . $message . '#R' . $SignalRepeats . $ITClock . $ITfrequency);
   }
   return $ret;
@@ -1514,12 +1514,12 @@ Examples:
   Das InterTechno 433MHZ Protokoll wird von einer Vielzahl von Ger&auml;ten 
 	benutzt. Diese geh&ouml;ren entweder zur Kategorie Sender/Sensoren oder zur 
 	Kategorie Empf&auml;nger/Aktoren. Es ist das Senden sowie das Empfangen von InterTechno 
-	Befehlen m&ouml;glich. Ger&auml;ten können z.B.  
+	Befehlen m&ouml;glich. Ger&auml;ten k&ouml;tnnen z.B.  
 	Schalter, Dimmer usw. sein.
 
-  Von diesem Modul wird sowohl das Protolkoll 1 sowie das Protokoll 3 unterstützt.
+  Von diesem Modul wird sowohl das Protolkoll 1 sowie das Protokoll 3 unterst&uuml;tzt.
   Neu empfangene Pakete werden per Autocreate in Fhem unter der Kategorie IT angelegt.
-  Hinweis: IT Protokoll 1 devices werden nur beim on Befehl angelegt.
+  Hinweis: F&uuml;r ein AutoCreate muss die Taste innerhalb von 30 Sek 2 mal gedr&uuml;ckt werden.
 
   <br><br>
 
@@ -1550,21 +1550,36 @@ Examples:
 <br>
    Die Werte der ITRotary-Schalter und FLS100Rotary-Schalter werden intern in housecode-Werte umgewandelt.
 <br>
-   F&uuml;r Intertechno Protokoll 3 besteht der hauscode aus 26 Ziffern. Zusätzlich werden noch 4 Ziffern als Unit Code sowie eine Ziffer als Group code benötigt.
+   F&uuml;r Intertechno Protokoll 3 besteht der hauscode aus 26 Ziffern. Zus&auml;tzlich werden noch 4 Ziffern als Unit Code sowie eine Ziffer als Group code ben&ouml;tigt.
 <br> 
    Neues IT Element in FHEM anlegen: define IT myITSwitch IT <Adresse 26 Bit> <Group bit> <Unit Code> 
 <br><br>
 <b>Intertechno Protokoll 1 (ITv1)</b>
    <ul>
    <li><code>&lt;housecode&gt;</code> 10 Ziffern lange tri-State-Zahl (0/1/F) abh&auml;ngig vom benutzten Ger&auml;t.</li>
-   <li><code>&lt;on-code&gt;</code> 2 Ziffern lange tri-State-Zahl, die den Einschaltbefehl enth&auml;lt;
+   <li><code>&lt;on-code&gt; &lt;off-code&gt;</code> jeweils 2 Ziffern lange quad-State-Zahl (0/1/F/D), die den Einschaltbefehl enth&auml;lt;
      die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
-   <li><code>&lt;off-code&gt;</code> 2 Ziffern lange tri-State-Zahl, die den Ausschaltbefehl enth&auml;lt;
+   <li>optional <code>&lt;dimup-code&gt; &lt;dimdown-code&gt;</code> jeweils 2 Ziffern lange quad-State-Zahl (0/1/F/D), 
+   die den Befehl zum Herauf- und Herunterregeln enth&auml;lt; 
      die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
-   <li>Der optionale <code>&lt;dimup-code&gt;</code> ist eine 2 Ziffern lange tri-State-Zahl, die den Befehl zum Heraufregeln enth&auml;lt;
-     die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
-   <li>Der optionale <code>&lt;dimdown-code&gt;</code> ist eine 2 Ziffern lange tri-State-Zahl, die den Befehl zum Herunterregeln enth&auml;lt;
-     die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.</li>
+   <li>Hinweis: orginal ITv1 devices werden nur beim on Befehl angelegt.</li>
+   <li>Die nicht orginal ITv1 devices k&ouml;nnen wie folgt angelegt werden:</li><br>
+       Zum anlegen mit autocreate 2 mal auf "on" dr&uuml;cken:<br>
+       <code>2016.11.27 11:47:37.753 4: sduinoD IT: 001F001000 not defined (Switch code: <b>11</b>)</code><br>
+       <code>2016.11.27 11:47:37.755 2: autocreate: define IT_001F001000 IT 001F001000 0F F0</code><br><br>
+       Nun auf "off" oder eine andere Taste dr&uuml;cken:<br>
+       <code>2016.11.27 11:48:32.004 3: sduinoD IT: Code <b>1D</b> not supported by IT_001F001000.</code><br><br>
+       Da dies keine orginal Intertechno Steckdose ist, passt der on/off code im define nicht und muss angepasst werden<br>
+       <code>DEF  001F001000 <b>11 1D</b></code><br><br>
+   <li>  <b>EV1527</b></li>
+         Wenn im housecode ein nicht g&uuml;ltiger (10) ITv1 Tristatecode enthalten ist, dann wird es per autocreate als EV1527 angelegt.<br>
+         <code>&lt;housecode&gt;</code>  1527xabcde , abcde ist der empfangene housecode im Hex Format<br>
+         <code>&lt;on-code&gt; &lt;off-code&gt;</code> jeweils 4 Ziffern lange Bin Zahl (0/1), die den Einschaltbefehl enth&auml;lt;
+         die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.<br>
+         optional <code>&lt;dimup-code&gt; &lt;dimdown-code&gt;</code> jeweils 4 Ziffern lange Bin Zahl (0/1), 
+         die den Befehl zum Herauf- und Herunterregeln enth&auml;lt; 
+         die Zahl wird an den housecode angef&uuml;gt, um den 12-stelligen IT-Sendebefehl zu bilden.<br><br>
+         Nach dem anlegen per autocreate muss noch der on/off- und optional der dimcode beim define (DEF) angepasst werden.<br>
    </ul>
    <br>
 <b>SBC_FreeTec</b><br>
@@ -1591,7 +1606,7 @@ Beispiele:
       <code>define otherlamp IT 000000000F 11 10 00 00</code><br>
       <code>define otherroll1 IT FFFFFFF00F 11 10</code><br>
       <code>define IT_1527xe0fec IT 1527xe0fec 1001 0000</code><br>
-      <code>define Steck_1 IT FFF00FFF 000F 0000</code><br>
+      <code>define SBC_FreeTec_Steck1 IT FFF00FFF 000F 0000</code><br>
       <code>define itswitch1 IT A1</code><br>
       <code>define lamp IT J10</code><br>
       <code>define flsswitch1 IT IV1</code><br>
