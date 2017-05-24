@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 13196 2017-02-04 15:27:22Z dev $
+# $Id: 10_IT.pm 13196 2017-05-24 17:00:22Z dev $
 #
 ######################################################
 package main;
@@ -994,8 +994,9 @@ IT_Parse($$)
   my $isEV1527 = undef;
   if (length($msg) == 7) {
     if ($msgcode) {    # ITv1 or SBC_FreeTec
-      if (substr($msg,6, 1) eq '0' && substr($msgcode,8,2) ne 'FF') {   # SBC_FreeTec
-        $housecode=substr($msgcode,0,8);
+      my $sbcFreeTec = substr($msgcode,0,8);
+      if (defined($modules{IT}{defptr}{lc("$sbcFreeTec")}) || substr($msg,6, 1) eq '0' && substr($msgcode,8,2) ne 'FF') {   # SBC_FreeTec
+        $housecode=$sbcFreeTec;
         $onoffcode=substr($msgcode,length($msgcode)-4,4);
         Log3 $hash,5,"$ioname IT: SBC_FreeTec housecode = $housecode  onoffcode = $onoffcode";
       } else {       # ITv1
@@ -1130,7 +1131,9 @@ IT_Parse($$)
   }
   $def=$modules{IT}{defptr}{lc($housecode)};
 #$lh->{"learn"}  = 'ON';
+  
   foreach my $name (keys %{$def}) {
+    next if (IsIgnored($name));
     if (length($msg) == 17 || length($msg) == 19) {
       if ($def->{$name}->{READINGS}{group}{VAL} != $groupBit || $def->{$name}->{READINGS}{unit}{VAL} != $unitCode) {
         next;
