@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 13196 2017-05-24 17:00:22Z dev $
+# $Id: 10_IT.pm 13196 2017-07-01 17:00:00Z dev $
 #
 ######################################################
 package main;
@@ -1741,8 +1741,29 @@ Beispiele:
       die mit Platzhaltern in Namensangaben arbeiten (siehe <a href="#devspec">devspec</a>).
       Sie werden weiterhin mit der speziellen devspec (Ger&auml;tebeschreibung) "ignored=1" gefunden.
         </li><br>
-        
-     <a name="userV1setCodes"></a>
+
+    <a name="ITclock"></a>
+    <li>ITclock<br>
+       IT clock f&uuml;r das Senden beim Intertechno V1 Protokoll. Default 250.<br>
+       Hier ist eine Beschreibung f&uuml;r die Ermittlung des ITclock beim Signalduino:<br>
+       Nach dr&uuml;cken einer Taste an der Fernbedienung steht die empfangene raw Nachricht im log und in der device Ansicht des IT-device<br>
+       z.B.:<br>
+       MS;P0=357;P2=-1128;P3=1155;P4=-428;P5=-11420;D=05023402020202020202020202020202020202023402340234;CP=0;SP=5;<br>
+       Die Ziffer hinter "CP=" gibt die PatternNr des clock (hier P0) an.
+       Hier ist die clock 357
+    </li><br>
+    
+    <a name="ITfrequency"></a>
+    <li>ITfrequency<br>
+      Setzt die Sendefrequenz.
+    </li><br>
+    
+    <a name="ITrepetition"></a>
+    <li>ITrepetition<br>
+      Setzt die Sendewiederholungen (Default=6).
+    </li><br>
+    
+    <a name="userV1setCodes"></a>
      <li>userV1setCodes<br>
        damit k&ouml;nnen beim ITv1 Protokoll eigene setcodes zugef&uuml;gt werden. Beispiele:
        <ul><code>
