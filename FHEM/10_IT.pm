@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 19761 2019-07-02 18:37:03Z bjoernh $
+# $Id: 10_IT.pm 19761 2019-10-18 18:37:03Z Ralf9 $
 #
 ######################################################
 package main;
@@ -771,7 +771,7 @@ IT_Define($$)
     #Log3 $hash,2,"ITdefine 1527: $name a3=" . $a[3];
     $housecode = $a[2];
     if (substr($housecode,0,4) eq '1527') {
-      my $evcode;
+      my $evcode = "";
       my $bincode = sprintf("%020b",hex(substr($housecode,5)));
       for (my $n=0; $n<20; $n=$n+2) {
         $evcode = $evcode . $bintotristate{substr($bincode,$n,2)};
