@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 19761 2019-10-18 18:37:03Z Ralf9 $
+# $Id: 10_IT.pm 19761 2019-10-19 18:37:03Z Ralf9 $
 #
 ######################################################
 package main;
@@ -20,7 +20,7 @@ use SetExtensions;
 my %codes = (
   "XMIToff" => "off",
   "XMITon"  => "on", # Set to previous dim value (before switching it off)
-  "00" => "off",
+  "00" => "dimoff", # alt off
   "01" => "dim06%",
   "02" => "dim12%",
   "03" => "dim18%",
@@ -184,14 +184,13 @@ IT_Set($@)
   return "Dummydevice $hash->{NAME}: will not set data" if(IsDummy($hash->{NAME}));
 
   my $list = "";
-  $list .= "off:noArg on:noArg " if( AttrVal($name, "model", "") ne "itremote" && AttrVal($name, "model", "") ne "itswitch_CHN");
-  
-  if ($hash->{userV1setCodes}) {
-     if ($hash->{READINGS}{protocol}{VAL} eq "EV1527" || $hash->{READINGS}{protocol}{VAL} eq "V1") {
-        foreach my $setCode (keys %{$hash->{userV1setCodes}}) {
-           $list .= "$setCode:noArg ";
-        }
-     }
+  if( AttrVal($name, "model", "") ne "itremote" && AttrVal($name, "model", "") ne "itswitch_CHN") {
+    $list .= "off:noArg on:noArg ";
+    if ($hash->{userV1setCodes} && ($hash->{READINGS}{protocol}{VAL} eq "EV1527" || $hash->{READINGS}{protocol}{VAL} eq "V1")) {
+      foreach my $setCode (keys %{$hash->{userV1setCodes}}) {
+        $list .= "$setCode:noArg ";
+      }
+    }
   }
 
   my $c = $it_c2b{$a[0]};
@@ -1152,7 +1151,20 @@ IT_Parse($$)
       $def->{$name}->{READINGS}{protocol}{VAL}  = 'EV1527';
       Log3 $hash,4,"$ioname IT EV1527: " . $def->{$name}{NAME} . ', on code=' . $def->{$name}->{$it_c2b{"on"}} . ", Switch code=$onoffcode";
     }
-    if ($def->{$name}->{READINGS}{protocol}{VAL}  eq 'HE800') {
+    $newstate = "";
+    if ($def->{$name}{userV1setCodes} && ($def->{$name}->{READINGS}{protocol}{VAL} eq "EV1527" || $def->{$name}->{READINGS}{protocol}{VAL} eq "V1")) {
+       foreach my $usercode (keys %{$def->{$name}{userV1setCodes}}) {
+          if ($def->{$name}{userV1setCodes}{$usercode} eq $onoffcode) {
+             $newstate = $usercode;
+             last;
+          }
+      }
+      if ($newstate eq "") {
+         Log3 $def->{$name}{NAME},3,"$ioname IT: Code $onoffcode not found in userV1setCodes, try XMIT";
+      }
+    }
+    if ($newstate eq "") {
+     if ($def->{$name}->{READINGS}{protocol}{VAL}  eq 'HE800') {
 
       my %he800MapingTable = (
        2 => 12,
@@ -1200,7 +1212,7 @@ IT_Parse($$)
             $newstate="off";
         } 
       }
-    } elsif ($def->{$name}->{$it_c2b{"on"}} eq lc($onoffcode)) {
+     } elsif ($def->{$name}->{$it_c2b{"on"}} eq lc($onoffcode)) {
       $newstate="on";
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         my $lastDimVal = $def->{$name}->{READINGS}{lastDimValue}{VAL};
@@ -1211,25 +1223,23 @@ IT_Parse($$)
         } else {
             readingsSingleUpdate($def->{$name},"dim",100,1);
         }
-      } elsif ( AttrVal($name, "model", "") eq "itswitch_CHN" ) {
-				$newstate="closed";
-			}
-    } elsif ($def->{$name}->{$it_c2b{"off"}} eq lc($onoffcode)) {
+      }
+     } elsif ($def->{$name}->{$it_c2b{"off"}} eq lc($onoffcode)) {
       $newstate="off";
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         readingsSingleUpdate($def->{$name},"dim",0,1);
       }
-    } elsif ($def->{$name}->{$it_c2b{"dimup"}} eq lc($onoffcode)) {
+     } elsif ($def->{$name}->{$it_c2b{"dimup"}} eq lc($onoffcode)) {
       $newstate="dimup";
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         readingsSingleUpdate($def->{$name},"dim","dimup",1);
       }
-    } elsif ($def->{$name}->{$it_c2b{"dimdown"}} eq lc($onoffcode)) {
+     } elsif ($def->{$name}->{$it_c2b{"dimdown"}} eq lc($onoffcode)) {
       $newstate="dimdown";
       if( AttrVal($name, "model", "") eq "itdimmer" ) {
         readingsSingleUpdate($def->{$name},"dim","dimdown",1);
       }
-    } elsif ('d' eq lc($onoffcode)) {
+     } elsif ('d' eq lc($onoffcode)) {
       # dim
       my $binVal = ((bin2dec($dimCode)+1)*100)/16;
       $binVal =  int($binVal);
@@ -1241,12 +1251,11 @@ IT_Parse($$)
         $newstate="on";
       } elsif ($binVal == 0) {
         $newstate="off";
-      } 
-		} elsif ( AttrVal($name, "model", "") eq "itswitch_CHN" ) {
-				$newstate="open";
-		} else {
+      }
+     } else {
       Log3 $def->{$name}{NAME},3,"$ioname IT: Code $onoffcode not supported by $def->{$name}{NAME}.";
       next;
+     }
     }
     Log3 $def->{$name}{NAME},3,"$ioname IT: $def->{$name}{NAME} ".$def->{$name}->{STATE}."->".$newstate;
     push(@list,$def->{$name}{NAME});
@@ -1264,9 +1273,16 @@ sub IT_Attr(@)
 	
 	#Log3 $hash, 4, "$name IT_Attr: Calling Getting Attr sub with args: $cmd $aName = $aVal";
 		
-	if( $aName eq 'model' && $aVal eq 'ev1527') {
-		#Log3 $hash, 4, "$name IT_Attr: ev1527";
-		$hash->{READINGS}{protocol}{VAL}  = 'EV1527';
+	if( $aName eq 'model') {
+		if ($aVal eq 'ev1527') {
+			#Log3 $hash, 4, "$name IT_Attr: ev1527";
+			$hash->{READINGS}{protocol}{VAL}  = 'EV1527';
+		} elsif ($aVal eq 'itswitch_CHN') {
+			#$hash->{userV1setCodes} = ("open" => "1010", "closed" => "1110");
+			$hash->{userV1setCodes} = undef;
+			$hash->{userV1setCodes}{open} = "1010";
+			$hash->{userV1setCodes}{closed} = "1110";
+		}
 	} elsif ( $aName eq 'userV1setCodes') {
 		my @array = split(" ",$aVal);
 		$hash->{userV1setCodes} = undef;
