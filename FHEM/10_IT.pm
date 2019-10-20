@@ -20,7 +20,7 @@ use SetExtensions;
 my %codes = (
   "XMIToff" => "off",
   "XMITon"  => "on", # Set to previous dim value (before switching it off)
-  "00" => "dimoff", # alt off
+  "00" => "dim00%", # alt off
   "01" => "dim06%",
   "02" => "dim12%",
   "03" => "dim18%",
