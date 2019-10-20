@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 19761 2019-10-19 18:37:03Z Ralf9 $
+# $Id: 10_IT.pm 19761 2019-10-20 18:37:03Z Ralf9 $
 #
 ######################################################
 package main;
@@ -1282,6 +1282,7 @@ sub IT_Attr(@)
 			$hash->{userV1setCodes} = undef;
 			$hash->{userV1setCodes}{open} = "1010";
 			$hash->{userV1setCodes}{closed} = "1110";
+			$hash->{userV1setCodes}{tamper} = "0111";
 		}
 	} elsif ( $aName eq 'userV1setCodes') {
 		my @array = split(" ",$aVal);
