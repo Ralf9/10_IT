@@ -637,13 +637,17 @@ IT_Set($@)
 	} else {
 		if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
 			$protocolId = 'P17#';
+		} elsif ($hash->{READINGS}{protocol}{VAL} eq "HE800") {	# HomeEasy HE800
+			$protocolId = 'P35#';
+		} elsif ($hash->{READINGS}{protocol}{VAL} eq "HE_EU") {	# HomeEasy HE_EU
+			$protocolId = 'P65#';
 		} else {
 			$protocolId = 'P3#';  # IT V1
 		}
 	}
 	if ($hash->{READINGS}{protocol}{VAL} ne "EV1527" && $hash->{READINGS}{protocol}{VAL} ne "V1" && $hash->{READINGS}{protocol}{VAL} ne 'SBC_FreeTec') {  # bei ITv1, SBC_FreeTec und EV1527 wird das "is" am Anfang nicht entfernt
-		$message = substr($message,2);
-		if (substr($message,0,1) eq "h") {    # h entfernen falls am am Anfang
+		$message =~ s/^is//;
+		if ($message =~ m/^[he]/) {    # h oder e entfernen, falls am Anfang
 			$message = substr($message,1);
 		}
 	}
