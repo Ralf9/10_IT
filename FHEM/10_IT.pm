@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 19761 2019-10-30 18:00:03Z Ralf9 $
+# $Id: 10_IT.pm 19761 2019-11-07 12:00:00Z Ralf9 $
 #
 ######################################################
 package main;
@@ -1367,6 +1367,7 @@ sub IT_Attr(@)
    <li>optional <code>&lt;dimup-code&gt; &lt;dimdown-code&gt;</code>  2 numbers in quad state format (0/1/F/D), 
    contains the command for dimming; 
      this number is added to the &lt;housecode&gt; to define tha actual 12-number sending command.</li>
+   <li>If the attribute userV1setCodes exists, these codes are also used for reception, the userV1setCodes have priority over the XMIT Codes.</li>
    <li>Notice: orginal ITv1 devices are only defined using the on command.</li>
    <li>Devices which are nt orignal ITv1 devices cen be defined as follows:</li><br>
        To autocreate press twice "on" within 30 seconds. The Log gives:<br>
@@ -1529,8 +1530,8 @@ Examples:
 
           <b>Dimmer</b>: itdimmer<br>
 
-          <b>door/window contact (china)</b>: itswitch_CHN<br>
-					
+          <b>door/window contact (china)</b>: itswitch_CHN (closed:1110 open:1010 tamper:0111)<br>
+
           <b>Receiver/Actor</b>: itswitch<br>
 
           <b>EV1527</b>: ev1527
@@ -1572,10 +1573,13 @@ Examples:
 
     <a name="userV1setCodes"></a>
      <li>userV1setCodes<br>
-       If an ITv1 protocol is used indivual setcodes can be added. Example:
+       If an ITv1 protocol is used indivual setcodes can be added.<br>
+       The setcodes are also used for reception, the userV1setCodes have priority over the XMIT Codes.<br>
+       Example:
        <ul><code>
        attr lamp userV1setCodes red:FD blue:1F<br>
-       attr lamp userV1setCodes up:1001 down:1000 stop:1011
+       attr lamp userV1setCodes up:1001 down:1000 stop:1011<br>
+       attr IT_1527x12345 userV1setCodes closed:0111 open:1110 tamper:1011 lowVoltage:1111  # Kerui magnetic contact sensors
        </code></ul>
     </li><br>
     
@@ -1820,7 +1824,7 @@ Beispiele:
         <b>Dimmer</b>: itdimmer<br>
 
         <b>T&uuml;r/Fensterkontakt (China)</b>: itswitch_CHN (closed:1110 open:1010 tamper:0111)<br>
-				
+
         <b>Empf&auml;nger/Actor</b>: itswitch<br>
 
         <b>EV1527</b>: ev1527
@@ -1867,7 +1871,8 @@ Beispiele:
        Beispiele:
        <ul><code>
        attr lamp userV1setCodes rot:FD blau:1F<br>
-       attr lamp userV1setCodes hoch:1001 runter:1000 stop:1011
+       attr lamp userV1setCodes hoch:1001 runter:1000 stop:1011<br>
+       attr IT_1527x12345 userV1setCodes closed:0111 open:1110 tamper:1011 lowVoltage:1111  # Kerui Fensterkontakt
        </code></ul>
     </li><br>
     
