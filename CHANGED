@@ -1,3 +1,9 @@
+13.01.2022
+ - return undef durch return '' ersetzt
+
+21.11.2019
+ - add tamper switch for model itswitch_CHN 
+ - userV1setCodes werden auch für den Empfang verwendet 
 22.01.2017
  - Beim EV1527 dimup und dimdown zugefügt.
  - Beim EV1527 funktioniert nun auch das set

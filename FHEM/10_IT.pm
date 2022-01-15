@@ -6,7 +6,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 19761 2019-11-07 12:00:00Z Ralf9 $
+# $Id: 10_IT.pm 20839 2022-01-13 19:00:00Z Ralf9 $
 #
 ######################################################
 package main;
@@ -894,11 +894,11 @@ IT_Parse($$)
   $modules{IT}{defptr}{ioname} = $ioname;
   if ((substr($msg, 0, 1)) ne 'i') {
     Log3 $hash,4,"$ioname IT: message not supported by IT \"$msg\"!";
-    return undef;
+    return '';
   }
   if (length($msg) != 7 && length($msg) != 12 && length($msg) != 17 && length($msg) != 19 && length($msg) != 20) {
     Log3 $hash,3,"$ioname IT: message \"$msg\" (" . length($msg) . ") too short!";
-    return undef;
+    return '';
   }
   Log3 $hash,4,"$ioname IT: message \"$msg\" (" . length($msg) . ")";
   my $bin = undef;
@@ -959,7 +959,7 @@ IT_Parse($$)
   } else { # IT
 	    if (length($msg) > 10) {
 			Log3 $hash,4,"$ioname IT: Wrong IT message received: $msg";
-			return undef;
+			return '';
 		} else {
 			$bin=sprintf("%024b",hex(substr($msg,1,length($msg)-1)));
 		}
@@ -1093,7 +1093,7 @@ IT_Parse($$)
 
   } else {
     Log3 $hash,4,"$ioname IT: Wrong IT message received: $msgcode";
-    return undef;
+    return '';
   }
   
   if(!defined($modules{IT}{defptr}{lc("$housecode")})) {
@@ -1106,7 +1106,7 @@ IT_Parse($$)
       if (!defined($isEV1527)) { # itv1
         if ($onoffcode eq "F0") { # on code IT
           Log3 $hash,3,"$ioname IT: For autocreate please use the on button.";
-          return undef;
+          return '';
         } 
         $tmpOffCode = "F0";
         $tmpOnCode = "0F";
