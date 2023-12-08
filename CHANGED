@@ -1,3 +1,6 @@
+08.12.2023
+ - bei $hash->{AttrList} nicht benötigte Einträge unit und group entfernt
+ - Anpassungen für TSCUL
 13.01.2022
  - return undef durch return '' ersetzt
 

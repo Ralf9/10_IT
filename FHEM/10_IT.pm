@@ -1,12 +1,14 @@
 ######################################################
 # InterTechno Switch Manager as FHM-Module
 #
-# (c) Olaf Droegehorn / DHS-Computertechnik GmbH
-# (c) Björn Hempel
+# Copyright (C)
+# Olaf Droegehorn / DHS-Computertechnik GmbH
+# Björn Hempel
+# 2023 Ralf9
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 20839 2022-01-13 19:00:00Z Ralf9 $
+# $Id: 10_IT.pm 20839 2023-12-08 18:00:00Z Ralf9 $
 #
 ######################################################
 package main;
@@ -117,13 +119,13 @@ IT_Initialize($)
   }
 
   $hash->{Match}     = "^i......";
-  $hash->{SetFn}     = "IT_Set";
+  $hash->{SetFn}     = \&IT_Set;
   #$hash->{StateFn}   = "IT_SetState";
-  $hash->{DefFn}     = "IT_Define";
-  $hash->{UndefFn}   = "IT_Undef";
-  $hash->{ParseFn}   = "IT_Parse";
-  $hash->{AttrFn}    = "IT_Attr";
-  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 SIGNALduinoProtocolId userV1setCodes unit group dummy:1,0 " .
+  $hash->{DefFn}     = \&IT_Define;
+  $hash->{UndefFn}   = \&IT_Undef;
+  $hash->{ParseFn}   = \&IT_Parse;
+  $hash->{AttrFn}    = \&IT_Attr;
+  $hash->{AttrList}  = "IODev ITfrequency ITrepetition ITclock switch_rfmode:1,0 do_not_notify:1,0 ignore:0,1 protocol:V1,V3,HE_EU,SBC_FreeTec,HE800 SIGNALduinoProtocolId userV1setCodes dummy:1,0 " .
                        "$readingFnAttributes " .
                        "model:".join(",", sort keys %models);
 
@@ -158,7 +160,7 @@ IT_Do_On_Till($@)
   my $hms_now = sprintf("%02d:%02d:%02d", $lt[2], $lt[1], $lt[0]);
   if($hms_now ge $hms_till) {
     Log 4, "on-till: won't switch as now ($hms_now) is later than $hms_till";
-    return "";
+    return '';
   }
 
   my @b = ("on");
@@ -337,8 +339,10 @@ IT_Set($@)
 
   Log3 $hash, 5, "$io->{NAME} IT_set: Type=" . $io->{TYPE} . ' Protocol=' . $hash->{READINGS}{protocol}{VAL};
 
-  if ($io->{TYPE} ne "SIGNALduino") {
+  if ($io->{TYPE} !~ m/^SIGNALduino/) {
 	# das IODev ist kein SIGNALduino
+
+	return 'IODev does not support IT' if ($io->{TYPE} eq 'TSCUL' && defined($io->{CMDS}) && $io->{CMDS} !~ m/i/); # TSCUL muss das i Kommando kennen
 
 	## Do we need to change RFMode to SlowRF??
 	if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
@@ -356,8 +360,10 @@ IT_Set($@)
 	}
 
 	## Do we need to change ITrepetition ??	
-	if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
-		$message = "isr".$attr{$name}{"ITrepetition"};
+	if(defined($attr{$name}) && defined($attr{$name}{'ITrepetition'})) {
+		my $itrep = $attr{$name}{'ITrepetition'};
+		$itrep = 254 if ($itrep > 254);
+		$message = 'isr'.$itrep;
 		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
 		Log3 $hash,4, "IT set ITrepetition: $message for $io->{NAME}";
 	}
@@ -532,8 +538,8 @@ IT_Set($@)
         #XOR encryption 2 rounds
         for (my $r=0; $r<=1; $r++){           # 2 encryption rounds
             $mn[0] = $key[ $mn[0]-$r+1];       # encrypt first nibble
-            my $i = 0;
-            for ($i=1; $i<=5 ; $i++){      # encrypt 4 nibbles
+            #my $i = 0;
+            for (my $i=1; $i<=5 ; $i++){      # encrypt 4 nibbles
                 $mn[$i] = $key[($mn[$i] ^ $mn[$i-1])-$r+1];   # crypted with predecessor & key
             }
         }
@@ -572,8 +578,7 @@ IT_Set($@)
   }
 
   
-  if ($io->{TYPE} ne "SIGNALduino") {
-	# das IODev ist kein SIGNALduino
+  if ($io->{TYPE} eq 'CUL') {
 	## Send Message to IODev and wait for correct answer
 	my $msg = CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
 	Log3 $hash,5,"IT_Set: GetFn(raw): message = $message Antwort = $msg";
@@ -609,7 +614,17 @@ IT_Set($@)
 			my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "HomeMatic"));
 	 	}
 	}
-	
+
+  } elsif ($io->{TYPE} eq 'TSCUL') {
+    CallFn($io->{NAME}, 'SetFn', $io, (' ', 'raw', $message));  # tsculfw VTS0.32+ resets frequency, offset, ITrepetition and ITclock back to firmware default values after send
+
+    ## Do we need to change RFMode back to HomeMatic??
+    if(defined($attr{$name}) && defined($attr{$name}{'switch_rfmode'})) {
+        if ($attr{$name}{'switch_rfmode'} eq '1') {            # do we need to change RFMode of IODev
+            my $ret = CallFn($io->{NAME}, 'AttrFn', 'set', ($io->{NAME}, 'rfmode', 'HomeMatic'));
+        }
+    }
+  
   } else {  	# SIGNALduino
 	
 	my $SignalRepeats = AttrVal($name,'ITrepetition', '6');
