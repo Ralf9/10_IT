@@ -8,7 +8,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 20839 2023-12-08 18:00:00Z Ralf9 $
+# $Id: 10_IT.pm 20839 2023-12-12 18:00:00Z Ralf9 $
 #
 ######################################################
 package main;
@@ -47,7 +47,7 @@ my %codes = (
 my %codes_he800 = (
   "XMIToff" => "off",
   "XMITon"  => "on", # Set to previous dim value (before switching it off)
-  "00" => "off",
+  "00" => "dim00%",
   #"01" => "last-dim-on",
   "02" => "dim12%",
   "03" => "dim25%",
@@ -259,6 +259,19 @@ IT_Set($@)
 
 
   my $io = $hash->{IODev};
+  return 'no IODev available, adapt attribute IODevList' if (!defined($io));
+  
+  my $ioNotSIGNALduino = ($io->{TYPE} !~ m/^SIGNALduino/);
+  my $ioTsculfw = 0;
+  if ($io->{TYPE} eq 'TSCUL') {
+    if ($io->{helper}{SVTS}) {
+      $ioTsculfw = 1;
+    }
+    else {
+      Log3 $hash, 2, 'IT set ERROR: TSCUL has not required firmware';
+    }
+  }
+  
   my $v = $name ." ". join(" ", @a);
   ## Log that we are going to switch InterTechno
   Log3 $hash, 3, "$io->{NAME} IT_set: $v";
@@ -338,49 +351,56 @@ IT_Set($@)
 
 
   Log3 $hash, 5, "$io->{NAME} IT_set: Type=" . $io->{TYPE} . ' Protocol=' . $hash->{READINGS}{protocol}{VAL};
-
-  if ($io->{TYPE} !~ m/^SIGNALduino/) {
+  my $oldIOMode;
+  if ($ioNotSIGNALduino) {
 	# das IODev ist kein SIGNALduino
 
-	return 'IODev does not support IT' if ($io->{TYPE} eq 'TSCUL' && defined($io->{CMDS}) && $io->{CMDS} !~ m/i/); # TSCUL muss das i Kommando kennen
+	return "IODev $io->{NAME} does not support IT" if ($ioTsculfw && defined($io->{CMDS}) && $io->{CMDS} !~ m/i/); # TSCUL muss das i Kommando kennen
 
 	## Do we need to change RFMode to SlowRF??
-	if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
-		if ($attr{$name}{"switch_rfmode"} eq "1") {				# do we need to change RFMode of IODev
-			my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "SlowRF"));
-		}
-	}
+    if (AttrVal($name, 'switch_rfmode', '0')) {
+        $oldIOMode = AttrVal($io->{NAME}, 'rfmode', 'SlowRF');
+        CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "SlowRF"));
+    }
 	## Do we need to change ITClock ??	}
-	if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) {
-		#$message = "isc".$attr{$name}{"ITclock"};
-		#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		$message = $attr{$name}{"ITclock"};
-		CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", $message));
+	if (defined($message = AttrVal($name, 'ITclock', undef))) {
+		CallFn($io->{NAME}, "SetFn", $io, ($io->{NAME}, "ITClock", $message));
 		Log3 $hash, 3, "IT set ITclock: $message for $io->{NAME}";
 	}
 
 	## Do we need to change ITrepetition ??	
-	if(defined($attr{$name}) && defined($attr{$name}{'ITrepetition'})) {
-		my $itrep = $attr{$name}{'ITrepetition'};
-		$itrep = 254 if ($itrep > 254);
-		$message = 'isr'.$itrep;
-		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		Log3 $hash,4, "IT set ITrepetition: $message for $io->{NAME}";
-	}
+    my $itrep;
+    if($itrep = AttrVal($name, 'ITrepetition', 0)) {
+      $itrep = 254 if ($itrep > 254);
+      $message = 'isr'.$itrep;
+      if ($ioTsculfw) { # tsculfw
+        CallFn($io->{NAME}, 'SetFn', $io, ($io->{NAME}, 'raw', $message)); # if not set before send the tsculfw default is 3 and reverts to it after send
+      }
+      else { # culfw, a-culfw
+        CallFn($io->{NAME}, 'GetFn', $io, (' ', 'raw', $message));
+      }
+      Log3 $hash,4, "IT set ITrepetition: $message for $io->{NAME}";
+    }
 
-	## Do we need to change ITfrequency ??	
-	if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
-		my $f = $attr{$name}{"ITfrequency"}/26*65536;
-		my $f2 = sprintf("%02x", $f / 65536);
-		my $f1 = sprintf("%02x", int($f % 65536) / 256);
-		my $f0 = sprintf("%02x", $f % 256);
-
-		my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
-		Log3 $hash, 3, "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
-		CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if$f2$f1$f0"));
-	}
+    ## Do we need to change ITfrequency ??	
+    my $f;
+    if (defined($f = AttrVal($name, 'ITfrequency', undef))) {
+      $f = $f/26*65536;
+      my $f2 = sprintf("%02x", $f / 65536);
+      my $f1 = sprintf("%02x", int($f % 65536) / 256);
+      my $f0 = sprintf("%02x", $f % 256);
+      $message = "if$f2$f1$f0";
+      my $arg = sprintf("%.3f", (hex($f2)*65536+hex($f1)*256+hex($f0))/65536*26);
+      Log3 $hash, 3, "Setting ITfrequency (0D,0E,0F) to $f2 $f1 $f0 = $arg MHz";
+      if ($ioTsculfw) { # tsculfw
+        CallFn($io->{NAME}, 'SetFn', $io, ($io->{NAME}, 'raw', $message));
+      }
+      else {
+        CallFn($io->{NAME}, 'GetFn', $io, (' ', 'raw', $message));
+      }
+    }
   }
-	
+
   if ($hash->{READINGS}{protocol}{VAL} eq "V3") {
     if( AttrVal($name, "model", "") eq "itdimmer" ) {
       my @itvalues = split(' ', $v);
@@ -438,6 +458,7 @@ IT_Set($@)
     my $msg;
 
     my %he800MapingTable = (
+        0 => 0,
        12 => 2,
        25 => 3,
        37 => 4,
@@ -563,8 +584,8 @@ IT_Set($@)
         $message = "ish".uc($bin);
     }
   } else {
-    my $onoffcode;
-    if (defined($c)) {
+    my $onoffcode = '';
+    if (defined($c) && defined($hash->{$c})) {
        $onoffcode = $hash->{$c};
     } else {
        if ($hash->{userV1setCodes}) {
@@ -574,56 +595,51 @@ IT_Set($@)
     if (length($onoffcode) == 4 && $hash->{READINGS}{protocol}{VAL} ne 'SBC_FreeTec') {   # EV1527
       $onoffcode = $bintotristate{substr($onoffcode,0,2)} . $bintotristate{substr($onoffcode,2,2)};
     }
-    $message = "is".uc($hash->{XMIT}.$onoffcode);
+    $message = 'is'.uc($hash->{XMIT}.$onoffcode);
   }
 
   
-  if ($io->{TYPE} eq 'CUL') {
-	## Send Message to IODev and wait for correct answer
-	my $msg = CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-	Log3 $hash,5,"IT_Set: GetFn(raw): message = $message Antwort = $msg";
-	if ($msg =~ m/raw => $message/) {
-		Log 4, "ITSet: Answer from $io->{NAME}: $msg";
-	} else {
-		Log 2, "IT IODev device didn't answer is command correctly: $msg";
-	}
-	## Do we need to change ITrepetition back??	
-        if(defined($attr{$name}) && defined($attr{$name}{"ITrepetition"})) {
-        	$message = "isr".$it_defrepetition;
-        	CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
-		Log3 $hash, 3, "IT set ITrepetition back: $message for $io->{NAME}";
-	}
-
-        ## Do we need to change ITfrequency back??	
-        if(defined($attr{$name}) && defined($attr{$name}{"ITfrequency"})) {
-        	Log3 $hash,4 ,"Setting ITfrequency back to 433.92 MHz";
-        	CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "if0"));
-        }
-	
-	## Do we need to change ITClock back??	
-	if(defined($attr{$name}) && defined($attr{$name}{"ITclock"})) 
-        {
-        	Log3 $hash, 3, "Setting ITClock back to 420";
-        	#CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "sic250"));
-        	CallFn($io->{NAME}, "SetFn", $io, ($hash->{NAME}, "ITClock", "420"));
-        }
-	
-	## Do we need to change RFMode back to HomeMatic??
-	if(defined($attr{$name}) && defined($attr{$name}{"switch_rfmode"})) {
-		if ($attr{$name}{"switch_rfmode"} eq "1") {			# do we need to change RFMode of IODev
-			my $ret = CallFn($io->{NAME}, "AttrFn", "set", ($io->{NAME}, "rfmode", "HomeMatic"));
-	 	}
-	}
-
-  } elsif ($io->{TYPE} eq 'TSCUL') {
-    CallFn($io->{NAME}, 'SetFn', $io, (' ', 'raw', $message));  # tsculfw VTS0.32+ resets frequency, offset, ITrepetition and ITclock back to firmware default values after send
-
-    ## Do we need to change RFMode back to HomeMatic??
-    if(defined($attr{$name}) && defined($attr{$name}{'switch_rfmode'})) {
-        if ($attr{$name}{'switch_rfmode'} eq '1') {            # do we need to change RFMode of IODev
-            my $ret = CallFn($io->{NAME}, 'AttrFn', 'set', ($io->{NAME}, 'rfmode', 'HomeMatic'));
-        }
+  if ($ioNotSIGNALduino) {
+    if    ($ioTsculfw) { # tsculfw
+      ## Send Message to IODev
+      CallFn($io->{NAME}, 'SetFn', $io, (' ', 'raw', $message));  # tsculfw VTS0.32+ resets frequency, offset, ITrepetition and ITclock back to firmware default values after send
     }
+    else { # culfw, a-culfw
+      ## Send Message to IODev and wait for correct answer
+      my $msg = CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", $message));
+      Log3 $hash,5,"IT_Set: GetFn(raw): message = $message Antwort = $msg";
+      if ($msg =~ m/raw => $message/) {
+        Log 4, "ITSet: Answer from $io->{NAME}: $msg";
+      } else {
+        Log 2, "IT IODev device didn't answer is command correctly: $msg";
+      }
+
+      ## Do we need to change ITrepetition back??	
+      if (defined(AttrVal($name, 'ITrepetition', undef))) {
+        $message = 'isr'.$it_defrepetition;
+        CallFn($io->{NAME}, 'GetFn', $io, (' ', 'raw', $message));
+        Log3 $hash, 3, "IT set ITrepetition back: $message for $io->{NAME}";
+      }
+
+      ## Do we need to change ITfrequency back??	
+      if (defined(AttrVal($name, 'ITrepetition', undef))) {
+        Log3 $hash,4 ,'Setting ITfrequency back to 433.92 MHz';
+        CallFn($io->{NAME}, 'GetFn', $io, (' ', 'raw', 'if0'));
+      }
+
+      ## Do we need to change ITClock back??	
+      if (defined(AttrVal($name, 'ITclock', undef)))  {
+        Log3 $hash, 3, 'Setting ITClock back to 420';
+        #CallFn($io->{NAME}, "GetFn", $io, (" ", "raw", "sic250"));
+        CallFn($io->{NAME}, 'SetFn', $io, ($hash->{NAME}, 'ITClock', '420'));
+      }
+    }
+    
+    ## Do we need to change RFMode back to previous mode??
+    if (AttrVal($name, 'switch_rfmode', '0')) { # do we need to change RFMode of IODev?
+      CallFn($io->{NAME}, 'AttrFn', 'set', ($hash->{NAME}, 'rfmode', $oldIOMode));
+    }
+
   
   } else {  	# SIGNALduino
 	
@@ -726,6 +742,19 @@ IT_Define($$)
   my $groupBit;
   my $name = $a[0];
 
+  if ($hash->{OLDDEF}) {
+    Log3 $hash,4,"ITdefine: delete OLDDEF $hash->{CODE}{1}";
+    delete($hash->{CODE}{1});
+    my @b = split(/[ \t]+/, $hash->{OLDDEF}, 2);
+    delete($modules{IT}{defptr}{lc($b[0])}{$name});
+    delete($hash->{READINGS}{protocol});
+    delete($hash->{READINGS}{mode});
+    delete($hash->{READINGS}{unit});
+    delete($hash->{READINGS}{group});
+    for my $c (keys(%it_c2b)) {
+      delete($hash->{$c});
+    }
+  }
    
   if ($a[3] eq "HE800") {
     # OLD, do not use anymore
@@ -1186,6 +1215,7 @@ IT_Parse($$)
      if ($def->{$name}->{READINGS}{protocol}{VAL}  eq 'HE800') {
 
       my %he800MapingTable = (
+       0 => 0,
        2 => 12,
        3 => 25,
        4 => 37,
@@ -1228,8 +1258,11 @@ IT_Parse($$)
         #    $newstate="on";
         #} els
         if ($binVal == 0) {
-            $newstate="off";
-        } 
+            $newstate='off';
+        }
+        elsif ($binVal == 100) {
+            $newstate='on';
+        }
       }
      } elsif ($def->{$name}->{$it_c2b{"on"}} eq lc($onoffcode)) {
       $newstate="on";

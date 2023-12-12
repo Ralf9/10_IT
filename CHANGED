@@ -1,3 +1,6 @@
+12.12.2023
+ - bei set TSCUL Unterstützung zugefügt
+ - bei einem modify der DEF wird nun die alte DEF gelöscht
 08.12.2023
  - bei $hash->{AttrList} nicht benötigte Einträge unit und group entfernt
  - Anpassungen für TSCUL
