@@ -90,7 +90,7 @@ sub listfiles2{
             }
         }
         
-        open(my $fh, '>:raw', 'controls_signalduino.txt');
+        open(my $fh, '>:raw', 'controls_it.txt');
         
         foreach my $l (sort @lines){
             print $l;

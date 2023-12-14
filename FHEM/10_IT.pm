@@ -8,7 +8,7 @@
 # 
 # Published under GNU GPL License
 #
-# $Id: 10_IT.pm 20839 2023-12-12 18:00:00Z Ralf9 $
+# $Id: 10_IT.pm 20839 2023-12-14 22:00:00Z Ralf9 $
 #
 ######################################################
 package main;
@@ -478,8 +478,11 @@ IT_Set($@)
       $rollingCode = 0;
     }
     my $oldMode = 0;
+    my $sendVal;
     if ($cVal eq "on") {
-      my $sendVal = $hash->{READINGS}{"on_" . $rollingCode}{VAL};
+      if (exists($hash->{READINGS}{"on_" . $rollingCode})) {
+        $sendVal = $hash->{READINGS}{"on_" . $rollingCode}{VAL};
+      }
       if (defined $sendVal && $sendVal ne "" && $sendVal ne "0") {
         $message = "ish".uc($sendVal);
         $oldMode = 1;
@@ -489,7 +492,9 @@ IT_Set($@)
         $mode = 1;
       }
     } elsif ($cVal eq "off") {
-      my $sendVal = $hash->{READINGS}{"off_" . $rollingCode}{VAL};
+      if (exists($hash->{READINGS}{"off_" . $rollingCode})) {
+        $sendVal = $hash->{READINGS}{"off_" . $rollingCode}{VAL};
+      }
       if (defined $sendVal && $sendVal ne "" && $sendVal ne "0") {
         $message = "ish".uc($sendVal);
         $oldMode = 1;
@@ -940,14 +945,47 @@ IT_Parse($$)
     Log3 $hash,4,"$ioname IT: message not supported by IT \"$msg\"!";
     return '';
   }
-  if (length($msg) != 7 && length($msg) != 12 && length($msg) != 17 && length($msg) != 19 && length($msg) != 20) {
-    Log3 $hash,3,"$ioname IT: message \"$msg\" (" . length($msg) . ") too short!";
-    return '';
-  }
-  Log3 $hash,4,"$ioname IT: message \"$msg\" (" . length($msg) . ")";
+  
   my $bin = undef;
-  my $isDimMode = 0;
-  if (length($msg) == 17) { # IT V3
+  my $ishe = (substr($msg, 1, 1) eq 'h');
+  if ($ishe) {
+    if (length($msg) == 9 || length($msg) == 17) {  # from sduino
+      $msg .= '0';
+    }
+    Log3 $hash,4,"$ioname IT: HE message \"$msg\" (" . length($msg) . ")";
+    if (length($msg) == 18 || length($msg) == 20) { # HomeEasy EU
+      #Log3 $ioname,3,"HEX Part1: " . substr($msg,2,8);
+      my $bin1=sprintf("%024b",hex(substr($msg,2,8)));
+      while (length($bin1) < 32) {
+        # suffix 0
+        $bin1 = '0'.$bin1;   
+      }
+      #Log3 $ioname,3,"HEX Part2: " . substr($msg,2+8,7);
+      my $bin2=sprintf("%024b",hex(substr($msg,2+8,7)));
+      while (length($bin2) < 28) {
+        # suffix 0
+        $bin2 = '0'.$bin2;   
+      }
+      $bin = $bin1 . $bin2;
+    }
+    elsif (length($msg) == 10 || length($msg) == 12) { # HomeEasy HE800
+      $bin=sprintf("%024b",hex(substr($msg,2,8)));
+      #my $bin1=sprintf("%024b",hex(substr($msg,2,8)));
+      #while (length($bin1) < 32) {
+      #  # suffix 0
+      #  $bin1 = '0'.$bin1;   
+      #}
+      #$bin = $bin1;
+    }
+    else {
+      Log3 $ioname,3,"$ioname IT: HE message  \"$msg\" (" . length($msg) . ") wrong length!";
+      return '';
+    }
+  }
+  else { # IT V1 / V3
+    Log3 $hash,4,"$ioname IT: message \"$msg\" (" . length($msg) . ")";
+    #my $isDimMode = 0;
+    if (length($msg) == 17) { # IT V3
         my $bin1=sprintf("%024b",hex(substr($msg,1,length($msg)-1-8)));
         while (length($bin1) < 32) {
           # suffix 0
@@ -960,7 +998,8 @@ IT_Parse($$)
         }
         $bin = $bin1 . $bin2;
         Log3 $hash,4,"$ioname ITv3: bin message \"$bin\" (" . length($bin) . ")";
-  } elsif (length($msg) == 19 ) { # IT V3 Dimm
+    }
+    elsif (length($msg) == 19 ) { # IT V3 Dimm
         my $bin1=sprintf("%024b",hex(substr($msg,1,length($msg)-1-8-8)));
         while (length($bin1) < 32) {
           # suffix 0
@@ -978,35 +1017,14 @@ IT_Parse($$)
         }
         $bin = substr($bin1 . $bin2 . $bin3,24,length($bin1 . $bin2 . $bin3)-1);
         Log3 $hash,4,"$ioname ITv3dimm: bin message \"$bin\" (" . length($bin) . ")";
-  } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
-        #Log3 undef,3,"HEX Part1: " . substr($msg,2,8);
-        my $bin1=sprintf("%024b",hex(substr($msg,2,8)));
-        while (length($bin1) < 32) {
-          # suffix 0
-          $bin1 = '0'.$bin1;   
-        }
-        #Log3 undef,3,"HEX Part2: " . substr($msg,2+8,7);
-        my $bin2=sprintf("%024b",hex(substr($msg,2+8,7)));
-        #$bin2 = substr($bin2,4);
-        while (length($bin2) < 28) {
-          # suffix 0
-          $bin2 = '0'.$bin2;   
-        }
-        $bin = $bin1 . $bin2;# . $bin3;
-  } elsif (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy HE800
-        my $bin1=sprintf("%024b",hex(substr($msg,2,8)));
-        while (length($bin1) < 32) {
-          # suffix 0
-          $bin1 = '0'.$bin1;   
-        }
-        $bin = $bin1;# . $bin3;
-  } else { # IT
-	    if (length($msg) > 10) {
-			Log3 $hash,4,"$ioname IT: Wrong IT message received: $msg";
-			return '';
-		} else {
-			$bin=sprintf("%024b",hex(substr($msg,1,length($msg)-1)));
-		}
+    }
+    elsif (length($msg) == 7) { # IT
+      $bin=sprintf("%024b",hex(substr($msg,1,length($msg)-1)));
+    }
+    else {
+      Log3 $ioname,3,"$ioname IT: message  \"$msg\" (" . length($msg) . ") wrong length!";
+      return '';
+    }
   }
 
   if ((length($bin) % 2) != 0) {
@@ -1015,10 +1033,14 @@ IT_Parse($$)
   }
   my $binorg = $bin;
   my $msgcode="";
-  if (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy HE800;
-    $msgcode=substr($bin, 0, 28);
-  } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU;
-    $msgcode=substr($bin, 0, 57);
+  if ($ishe) { # HomeEasy
+    if (length($msg) >= 18) {  # HomeEasy EU
+      $msgcode=substr($bin, 0, 57);
+    }
+    else { # HomeEasy HE800;
+      #$msgcode=substr($bin, 0, 28);
+      $msgcode=$bin;
+    }
   } else {
     while (length($bin)>=2) {
       if (length($msg) == 7) {
@@ -1036,8 +1058,8 @@ IT_Parse($$)
           #Log3 $hash,4,"$ioname IT:unknown tristate in \"$bin\"";
           #return "unknown tristate in \"$bin\""
         }
-      } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
-        $msgcode=$msgcode.$bintotristateHE{substr($bin,0,2)};
+      #} elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU, but this is never reached, see $ishe above!
+      #  $msgcode=$msgcode.$bintotristateHE{substr($bin,0,2)};
       } else {
         $msgcode=$msgcode.$bintotristateV3{substr($bin,0,2)};
       }
@@ -1074,12 +1096,12 @@ IT_Parse($$)
     if (length($msg) == 19) {
       $dimCode=substr($msgcode,32,4);
     }
-  } elsif (length($msg) == 20 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy EU
+  } elsif ($ishe && length($msg) >= 18) { # HomeEasy EU
     $onoffcode=substr($msgcode,46,2);
     $groupBit=substr($msgcode,48,2);
     $unitCode=substr($msgcode,50,7);
     $housecode=substr($msgcode,0,46).$unitCode;
-  } elsif (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HomeEasy HE800
+  } elsif ($ishe && length($msg) <= 12) { # HomeEasy HE800
     #$housecode=substr($msgcode,0,6).substr($msgcode,26,2);
     #$onoffcode=0;
 
@@ -1167,7 +1189,7 @@ IT_Parse($$)
         $tmpOnCode = '0100';
       }
       return "UNDEFINED IT_$housecode IT $housecode $tmpOnCode $tmpOffCode" if(!$def);
-    } elsif (length($msg) == 20) { # HE_EU
+    } elsif ($ishe && length($msg) >= 18) { # HE_EU
       my $isGroupCode = '0';
       if (($onoffcode == '01' && $groupBit == '01') || ($onoffcode == '00' && $groupBit == '11')) {
         # Group Code found
@@ -1176,7 +1198,7 @@ IT_Parse($$)
       Log3 $hash,2,"$ioname IT: $housecode not defined (Address: ".substr($msgcode,0,46)." Unit: $unitCode Switch code: $onoffcode GroupCode: $isGroupCode)";
       #return "$housecode not defined (Address: ".substr($msgcode,0,26)." Group: $groupBit Unit: $unitCode Switch code: $onoffcode)!";
       return "UNDEFINED IT_$housecode IT " . substr($msgcode,0,46) . " $isGroupCode $unitCode" if(!$def);
-    } elsif (length($msg) == 12 && (substr($msg, 1, 1)) eq 'h') { # HE800
+    } elsif ($ishe && length($msg) <= 12) { # HE800
       Log3 $hash,2,"$ioname IT: $housecode not defined (HE800)";
       return "UNDEFINED IT_HE800_$housecode IT " . "HE800 $transmittercode $unitCode" if(!$def);
     } else {
