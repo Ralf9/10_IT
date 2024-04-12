@@ -1,3 +1,5 @@
+12.04.2024
+ - bugfix ITfrequency
 12.12.2023
  - bei set TSCUL Unterstützung zugefügt
  - bei einem modify der DEF wird nun die alte DEF gelöscht
